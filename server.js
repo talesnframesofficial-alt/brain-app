@@ -1,22 +1,21 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ✅ ENV
 const MONGO_URI = process.env.MONGO_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ✅ CONNECT DB
+// ✅ DB
 mongoose.connect(MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log("Mongo Error:", err));
+  .catch(err => console.log(err));
 
-// ✅ SCHEMA
+// ✅ Schema
 const MemorySchema = new mongoose.Schema({
   category: String,
   content: Object,
@@ -26,52 +25,32 @@ const MemorySchema = new mongoose.Schema({
 
 const Memory = mongoose.model("Memory", MemorySchema);
 
-// ✅ GEMINI SETUP (WORKING MODEL)
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+// ✅ NEW GEMINI SETUP
+const ai = new GoogleGenAI({
+  apiKey: GEMINI_API_KEY
+});
 
-// ✅ SAFE AI CALL
-async function askAI(prompt) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-exp"
-  });
-
-  const result = await model.generateContent({
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: prompt }]
-      }
-    ]
-  });
-
-  return result.response.text();
-}
-
-// ✅ SAFE JSON PARSER
+// ✅ JSON extractor
 function extractJSON(text) {
   try {
     const start = text.indexOf("{");
     const end = text.lastIndexOf("}");
     if (start === -1 || end === -1) return null;
     return JSON.parse(text.substring(start, end + 1));
-  } catch (err) {
-    console.log("JSON Error:", err);
+  } catch {
     return null;
   }
 }
 
-// 🚀 MAIN API
+// 🚀 MAIN ROUTE
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 🧠 DECIDE ACTION
-    const decisionText = await askAI(`
-You are a personal AI brain.
-
-Classify into:
-people, finance, plans, medical, notes
-
+    // 🧠 Decision
+    const decisionRes = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents: `
 Return ONLY JSON:
 {
  "action": "store" or "retrieve",
@@ -81,9 +60,11 @@ Return ONLY JSON:
 }
 
 User input:
-"${userMessage}"
-`);
+${userMessage}
+`
+    });
 
+    const decisionText = decisionRes.text;
     const decision = extractJSON(decisionText);
 
     if (!decision) {
@@ -98,7 +79,7 @@ User input:
         rawText: userMessage
       });
 
-      return res.json({ reply: "Saved to your brain ✅" });
+      return res.json({ reply: "Saved ✅" });
     }
 
     // 🔍 RETRIEVE
@@ -107,29 +88,30 @@ User input:
         category: decision.category
       }).limit(10);
 
-      const answer = await askAI(`
-Answer clearly using this data:
+      const answerRes = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: `
+Answer using this data:
 ${JSON.stringify(data)}
 
 User question:
-"${userMessage}"
-`);
+${userMessage}
+`
+      });
 
-      return res.json({ reply: answer });
+      return res.json({ reply: answerRes.text });
     }
 
-    return res.json({ reply: "Not sure what to do 🤷" });
+    res.json({ reply: "Not sure 🤷" });
 
   } catch (err) {
-    console.log("FULL ERROR:", err);
-    return res.json({ reply: "Error: " + err.message });
+    console.log(err);
+    res.json({ reply: "Error: " + err.message });
   }
 });
 
-// ✅ ROOT
 app.get("/", (req, res) => {
   res.send("AI Brain Running 🚀");
 });
 
-// 🚀 START
 app.listen(3000, () => console.log("Server running"));
