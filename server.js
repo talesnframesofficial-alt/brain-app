@@ -28,7 +28,7 @@ const Memory = mongoose.model("Memory", MemorySchema);
 
 // ✅ GEMINI SETUP
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
 // 🧠 Helper function (handles messy AI response)
 function extractJSON(text) {
