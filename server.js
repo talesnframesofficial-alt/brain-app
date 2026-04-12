@@ -7,16 +7,16 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 
-// ✅ ENV VARIABLES
+// ✅ ENV
 const MONGO_URI = process.env.MONGO_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ✅ CONNECT DB
+// ✅ CONNECT MONGO
 mongoose.connect(MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log(err));
+  .catch(err => console.log("Mongo error:", err));
 
-// ✅ MEMORY SCHEMA
+// ✅ SCHEMA
 const MemorySchema = new mongoose.Schema({
   category: String,
   content: Object,
@@ -26,33 +26,36 @@ const MemorySchema = new mongoose.Schema({
 
 const Memory = mongoose.model("Memory", MemorySchema);
 
-// ✅ GEMINI SETUP
+// ✅ GEMINI SETUP (STABLE MODEL)
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-// 🧠 Helper function (handles messy AI response)
+// ✅ SAFE JSON EXTRACT
 function extractJSON(text) {
   try {
-    const match = text.match(/\{[\s\S]*\}/);
-    return JSON.parse(match[0]);
-  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end === -1) return null;
+    return JSON.parse(text.substring(start, end + 1));
+  } catch (err) {
+    console.log("JSON parse error:", err);
     return null;
   }
 }
 
-// 🚀 MAIN ROUTE
+// 🚀 MAIN CHAT API
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 🧠 STEP 1: Decide action
-    const decisionText = await model.generateContent(`
-You are a personal brain assistant.
+    // 🧠 STEP 1: DECIDE ACTION
+    const decisionResult = await model.generateContent(`
+You are a personal AI brain.
 
 Classify the input into:
 people, finance, plans, medical, notes
 
-Return ONLY JSON:
+Return ONLY JSON (no extra text):
 {
  "action": "store" or "retrieve",
  "category": "",
@@ -64,10 +67,11 @@ User input:
 "${userMessage}"
 `);
 
-    const decision = extractJSON(decisionText.response.text());
+    const decisionText = decisionResult.response.text();
+    const decision = extractJSON(decisionText);
 
     if (!decision) {
-      return res.json({ reply: "Couldn't understand properly" });
+      return res.json({ reply: "I didn't understand properly 🤔" });
     }
 
     // 🟢 STORE
@@ -87,30 +91,30 @@ User input:
         category: decision.category
       }).limit(10);
 
-      const answerText = await model.generateContent(`
-You are a smart personal assistant.
+      const answerResult = await model.generateContent(`
+You are a smart assistant.
 
-Answer the user based on this data:
+Answer using this data:
 ${JSON.stringify(data)}
 
 User question:
 "${userMessage}"
 `);
 
-      return res.json({
-        reply: answerText.response.text()
-      });
+      const reply = answerResult.response.text();
+
+      return res.json({ reply });
     }
 
-    res.json({ reply: "Not sure what to do" });
+    return res.json({ reply: "Not sure what to do 🤷" });
 
   } catch (err) {
-    console.log(err);
-    res.json({ reply: "Error occurred" });
+    console.log("ERROR:", err);
+    return res.json({ reply: "Server error occurred ❌" });
   }
 });
 
-// 🧪 TEST ROUTE
+// ✅ ROOT CHECK
 app.get("/", (req, res) => {
   res.send("AI Brain Running 🚀");
 });
