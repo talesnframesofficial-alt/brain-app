@@ -32,7 +32,7 @@ const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 // ✅ SAFE AI CALL
 async function askAI(prompt) {
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash"
+    model: "gemini-2.0-flash-exp"
   });
 
   const result = await model.generateContent({
