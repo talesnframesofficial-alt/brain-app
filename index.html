@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>My AI Brain</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #111;
+      color: white;
+    }
+    input {
+      width: 70%;
+      padding: 10px;
+    }
+    button {
+      padding: 10px;
+    }
+    #chat {
+      margin-top: 20px;
+    }
+    .msg {
+      margin: 10px 0;
+    }
+    .user { color: lightgreen; }
+    .ai { color: lightblue; }
+  </style>
+</head>
+<body>
+
+<h2>🧠 My AI Brain</h2>
+
+<input id="input" placeholder="Talk to your brain..." />
+<button onclick="send()">Send</button>
+
+<div id="chat"></div>
+
+<script>
+async function send() {
+  const msg = document.getElementById("input").value;
+
+  const chat = document.getElementById("chat");
+
+  chat.innerHTML += `<div class="msg user">You: ${msg}</div>`;
+
+  const res = await fetch("https://brain-app-320i.onrender.com/chat", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ message: msg })
+  });
+
+  const data = await res.json();
+
+  chat.innerHTML += `<div class="msg ai">AI: ${data.reply}</div>`;
+}
+</script>
+
+</body>
+</html>
