@@ -11,10 +11,10 @@ app.use(cors());
 const MONGO_URI = process.env.MONGO_URI;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// ✅ CONNECT MONGO
+// ✅ CONNECT DB
 mongoose.connect(MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log("Mongo error:", err));
+  .catch(err => console.log("Mongo Error:", err));
 
 // ✅ SCHEMA
 const MemorySchema = new mongoose.Schema({
@@ -26,11 +26,28 @@ const MemorySchema = new mongoose.Schema({
 
 const Memory = mongoose.model("Memory", MemorySchema);
 
-// ✅ GEMINI SETUP (STABLE MODEL)
+// ✅ GEMINI SETUP (WORKING MODEL)
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-// ✅ SAFE JSON EXTRACT
+// ✅ SAFE AI CALL
+async function askAI(prompt) {
+  const model = genAI.getGenerativeModel({
+    model: "gemini-1.5-flash"
+  });
+
+  const result = await model.generateContent({
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: prompt }]
+      }
+    ]
+  });
+
+  return result.response.text();
+}
+
+// ✅ SAFE JSON PARSER
 function extractJSON(text) {
   try {
     const start = text.indexOf("{");
@@ -38,24 +55,24 @@ function extractJSON(text) {
     if (start === -1 || end === -1) return null;
     return JSON.parse(text.substring(start, end + 1));
   } catch (err) {
-    console.log("JSON parse error:", err);
+    console.log("JSON Error:", err);
     return null;
   }
 }
 
-// 🚀 MAIN CHAT API
+// 🚀 MAIN API
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 🧠 STEP 1: DECIDE ACTION
-    const decisionResult = await model.generateContent(`
+    // 🧠 DECIDE ACTION
+    const decisionText = await askAI(`
 You are a personal AI brain.
 
-Classify the input into:
+Classify into:
 people, finance, plans, medical, notes
 
-Return ONLY JSON (no extra text):
+Return ONLY JSON:
 {
  "action": "store" or "retrieve",
  "category": "",
@@ -67,11 +84,10 @@ User input:
 "${userMessage}"
 `);
 
-    const decisionText = decisionResult.response.text();
     const decision = extractJSON(decisionText);
 
     if (!decision) {
-      return res.json({ reply: "I didn't understand properly 🤔" });
+      return res.json({ reply: "Couldn't understand 🤔" });
     }
 
     // 🟢 STORE
@@ -91,33 +107,29 @@ User input:
         category: decision.category
       }).limit(10);
 
-      const answerResult = await model.generateContent(`
-You are a smart assistant.
-
-Answer using this data:
+      const answer = await askAI(`
+Answer clearly using this data:
 ${JSON.stringify(data)}
 
 User question:
 "${userMessage}"
 `);
 
-      const reply = answerResult.response.text();
-
-      return res.json({ reply });
+      return res.json({ reply: answer });
     }
 
     return res.json({ reply: "Not sure what to do 🤷" });
 
   } catch (err) {
-    console.log("ERROR:", err);
-    return res.json({ reply: "Server error occurred ❌" });
+    console.log("FULL ERROR:", err);
+    return res.json({ reply: "Error: " + err.message });
   }
 });
 
-// ✅ ROOT CHECK
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.send("AI Brain Running 🚀");
 });
 
-// 🚀 START SERVER
+// 🚀 START
 app.listen(3000, () => console.log("Server running"));
