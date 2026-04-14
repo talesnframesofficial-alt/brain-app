@@ -7,99 +7,192 @@
 <style>
 body{
   margin:0;
-  font-family:system-ui;
+  font-family: system-ui, -apple-system;
+  background:#343541;
   color:white;
-  background:black;
+  height:100vh;
   overflow:hidden;
 }
 
-/* NEURAL CANVAS */
+/* 🧠 NEURAL BACKGROUND */
 #neural{
   position:fixed;
   width:100%;
   height:100%;
   z-index:-2;
+  background:black;
+}
+
+/* HEADER */
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:12px 16px;
+  background:rgba(32,33,35,0.9);
+  border-bottom:1px solid #444;
+}
+
+.header button{
+  background:#444;
+  border:none;
+  padding:6px 12px;
+  border-radius:6px;
+  color:white;
+  cursor:pointer;
 }
 
 /* CHAT */
 .chat{
   position:absolute;
   top:60px;
-  bottom:80px;
+  bottom:90px;
   width:100%;
   overflow-y:auto;
   padding:20px;
 }
 
+/* MESSAGE */
 .msg{
   max-width:700px;
-  padding:12px;
+  padding:12px 16px;
   margin:10px 0;
   border-radius:8px;
 }
 
-.user{ background:#3b82f6; margin-left:auto;}
-.ai{ background:rgba(50,50,60,0.8); }
+.user{
+  background:#3b82f6;
+  margin-left:auto;
+}
 
-/* INPUT */
+.ai{
+  background:rgba(68,70,84,0.9);
+}
+
+/* 💬 CHATGPT INPUT */
 .input-area{
   position:absolute;
   bottom:0;
   width:100%;
-  padding:10px;
-  background:#111;
+  padding:15px;
+  background:#343541;
 }
 
 .input-box{
   display:flex;
-  background:#222;
+  align-items:center;
+  background:#40414f;
+  border-radius:12px;
   padding:10px;
-  border-radius:10px;
 }
 
-input{
+.input-box input{
   flex:1;
+  background:transparent;
+  border:none;
+  color:white;
+  outline:none;
+  font-size:15px;
+}
+
+/* ICON BUTTONS */
+.icon-btn{
   background:none;
   border:none;
   color:white;
+  font-size:18px;
+  margin:0 6px;
+  cursor:pointer;
 }
 
-button{
-  margin-left:5px;
+/* SEND BUTTON */
+.send-btn{
+  background:#3b82f6;
+  border:none;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* ⚡ HUD GADGET */
+.hud{
+  position:fixed;
+  top:70px;
+  right:20px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid #38bdf8;
+  padding:10px;
+  border-radius:10px;
+  font-size:12px;
 }
 </style>
 </head>
 
 <body>
 
+<!-- 🧠 NEURAL -->
 <canvas id="neural"></canvas>
 
+<!-- HEADER -->
+<div class="header">
+  <div>🧠 Wang OS</div>
+  <button onclick="openDashboard()">📂 Dashboard</button>
+</div>
+
+<!-- CHAT -->
 <div id="chat" class="chat"></div>
 
+<!-- ⚡ HUD GADGET -->
+<div class="hud">
+  <div id="time"></div>
+  <div>AI: ONLINE</div>
+</div>
+
+<!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
-    <button onclick="voice()">🎤</button>
-    <input id="input" placeholder="Talk to Wang..." />
-    <button onclick="send()">➤</button>
+
+    <!-- 🎤 MIC -->
+    <button class="icon-btn" onclick="startVoice()">🎤</button>
+
+    <!-- TEXT -->
+    <input id="input" placeholder="Message Wang..." />
+
+    <!-- 📎 IMAGE -->
+    <input type="file" id="img" style="display:none">
+    <button class="icon-btn" onclick="document.getElementById('img').click()">📎</button>
+
+    <!-- SEND -->
+    <button class="send-btn" onclick="send()">➤</button>
+
   </div>
 </div>
 
 <script>
-// CHAT
 const chat = document.getElementById("chat");
 
+// ⏱️ TIME
+setInterval(()=>{
+  document.getElementById("time").innerText =
+    new Date().toLocaleTimeString();
+},1000);
+
+// ADD MESSAGE
 function add(text,cls){
   chat.innerHTML += `<div class="msg ${cls}">${text}</div>`;
+  chat.scrollTop = chat.scrollHeight;
 }
 
 // SEND
 async function send(){
   const input = document.getElementById("input");
-  const msg = input.value;
+  const msg = input.value.trim();
   if(!msg) return;
 
   add(msg,"user");
   input.value="";
+
+  add("Thinking...","ai");
 
   const res = await fetch("/chat",{
     method:"POST",
@@ -108,16 +201,29 @@ async function send(){
   });
 
   const data = await res.json();
+
+  chat.lastChild.remove();
   add(JSON.stringify(data.reply),"ai");
 }
 
-// VOICE
-function voice(){
+// ENTER KEY
+input.addEventListener("keypress", e=>{
+  if(e.key==="Enter") send();
+});
+
+// 🎤 VOICE
+function startVoice(){
   const rec = new webkitSpeechRecognition();
   rec.onresult = e=>{
-    document.getElementById("input").value = e.results[0][0].transcript;
+    document.getElementById("input").value =
+      e.results[0][0].transcript;
   };
   rec.start();
+}
+
+// 📂 DASHBOARD
+function openDashboard(){
+  window.open("dashboard.html","_blank");
 }
 
 // 🧠 NEURAL ANIMATION
@@ -128,7 +234,7 @@ canvas.width = innerWidth;
 canvas.height = innerHeight;
 
 let nodes=[];
-for(let i=0;i<70;i++){
+for(let i=0;i<80;i++){
   nodes.push({
     x:Math.random()*canvas.width,
     y:Math.random()*canvas.height,
