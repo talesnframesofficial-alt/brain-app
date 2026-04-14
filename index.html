@@ -2,10 +2,11 @@
 <html>
 <head>
 <title>Wang AI</title>
+
 <style>
 body {
   margin:0;
-  background: radial-gradient(circle, #020617, #000);
+  background:#020617;
   color:white;
   font-family:sans-serif;
   display:flex;
@@ -13,18 +14,15 @@ body {
   height:100vh;
 }
 
-/* HEADER */
 .header {
   display:flex;
   justify-content:space-between;
   padding:15px;
-  background:#020617;
   border-bottom:1px solid #38bdf8;
 }
 
 .title { color:#38bdf8; font-weight:bold; }
 
-/* CHAT */
 .chat {
   flex:1;
   overflow-y:auto;
@@ -32,8 +30,8 @@ body {
 }
 
 .msg {
-  padding:12px;
   margin:10px 0;
+  padding:12px;
   border-radius:10px;
   max-width:70%;
 }
@@ -42,22 +40,20 @@ body {
 .ai {
   background:#020617;
   border:1px solid #38bdf8;
-  box-shadow:0 0 15px #38bdf8;
+  box-shadow:0 0 10px #38bdf8;
 }
 
-/* INPUT */
 .input-area {
   display:flex;
   padding:10px;
-  background:#020617;
 }
 
 input {
   flex:1;
   padding:12px;
   background:#000;
-  color:white;
   border:1px solid #38bdf8;
+  color:white;
 }
 
 button {
@@ -67,33 +63,55 @@ button {
   border:none;
 }
 </style>
-</head>
 
+</head>
 <body>
 
 <div class="header">
   <div class="title">⚡ Wang AI</div>
-  <a href="dashboard.html" style="color:#22c55e">Dashboard</a>
+  <button onclick="stopVoice()">⏹ Stop</button>
 </div>
 
 <div id="chat" class="chat"></div>
 
 <div class="input-area">
-  <input id="input" placeholder="Talk to Wang..." />
+  <input id="input" placeholder="Ask anything..." />
   <button onclick="send()">Send</button>
   <button onclick="voice()">🎤</button>
-  <input type="file" id="img"/>
 </div>
 
 <script>
 const chat = document.getElementById("chat");
 
+// FORMAT RESPONSE
+function format(text){
+  return text
+    .replace(/## (.*)/g, "<h3>$1</h3>")
+    .replace(/\n- /g, "<br>• ")
+    .replace(/\n/g,"<br>");
+}
+
+// CLEAN TEXT FOR VOICE
+function cleanForVoice(text){
+  return text
+    .replace(/##/g,"")
+    .replace(/\*/g,"")
+    .replace(/•/g,"")
+    .replace(/<[^>]*>/g,"");
+}
+
+// ADD MESSAGE
 function add(text, cls){
   chat.innerHTML += `<div class="msg ${cls}">${text}</div>`;
   chat.scrollTop = chat.scrollHeight;
 }
 
-// 🎤 VOICE INPUT
+// STOP VOICE
+function stopVoice(){
+  speechSynthesis.cancel();
+}
+
+// VOICE INPUT
 function voice(){
   const rec = new webkitSpeechRecognition();
   rec.onresult = e=>{
@@ -102,52 +120,43 @@ function voice(){
   rec.start();
 }
 
-// 🔊 VOICE OUTPUT
+// VOICE OUTPUT (FIXED)
 function speak(text){
-  const speech = new SpeechSynthesisUtterance(text);
-  speech.lang = "en-US";
+  speechSynthesis.cancel(); // stop previous
+
+  const clean = cleanForVoice(text);
+
+  const speech = new SpeechSynthesisUtterance(clean);
+  speech.rate = 1;
+  speech.pitch = 1;
+
   speechSynthesis.speak(speech);
 }
 
+// SEND
 async function send(){
   const input = document.getElementById("input");
-  const file = document.getElementById("img").files[0];
-
-  let msg = input.value;
-  if(!msg && !file) return;
+  const msg = input.value;
+  if(!msg) return;
 
   add(msg,"user");
   input.value="";
 
-  let base64 = null;
-
-  if(file){
-    const reader = new FileReader();
-    reader.onload = async function(){
-      base64 = reader.result;
-
-      processSend(msg, base64);
-    };
-    reader.readAsDataURL(file);
-  } else {
-    processSend(msg, null);
-  }
-}
-
-async function processSend(msg, img){
   add("Wang thinking...","ai");
 
   const res = await fetch("https://brain-app-320i.onrender.com/chat",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({message:msg, image:img})
+    body:JSON.stringify({message:msg})
   });
 
   const data = await res.json();
+
   chat.lastChild.remove();
 
-  add(data.reply,"ai");
-  speak(data.reply); // 🔊 voice reply
+  add(format(data.reply),"ai");
+
+  speak(data.reply);
 }
 </script>
 
