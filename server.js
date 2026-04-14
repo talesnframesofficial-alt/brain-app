@@ -14,9 +14,9 @@ const openai = new OpenAI({
 mongoose.connect(process.env.MONGO_URI)
   .then(()=>console.log("MongoDB connected ✅"));
 
-// 🧠 MEMORY MODEL
+// 🧠 MODEL
 const Memory = mongoose.model("Memory", new mongoose.Schema({
-  type:String, // people, contacts, projects, notes
+  type:String,
   title:String,
   details:Object,
   rawText:String,
@@ -24,9 +24,12 @@ const Memory = mongoose.model("Memory", new mongoose.Schema({
 },{ strict:false }));
 
 // ============================
-// 🧠 AUTO MEMORY ENGINE
+// 🧠 AUTO MEMORY (SMART)
 // ============================
 async function autoMemory(message){
+
+  const isQuestion = /who|what|where|tell|show|\?/.test(message.toLowerCase());
+  if(isQuestion) return;
 
   const extract = await openai.chat.completions.create({
     model:"gpt-4o-mini",
@@ -34,25 +37,25 @@ async function autoMemory(message){
       {
         role:"system",
         content:`
-Analyze message and extract structured memory.
+Extract structured memory.
+
+IMPORTANT:
+- Only extract if meaningful
+- Name must be real name (no "who", "my", etc)
 
 Return JSON:
-
 {
- "type":"people | contact | project | note | none",
+ "type":"people | project | contact | note | none",
  "title":"",
  "details":{
    "name":"",
    "relation":"",
-   "phone":"",
    "location":"",
    "job":"",
-   "project":"",
    "notes":""
  }
 }
-
-If nothing important → type = "none"
+If nothing → type = "none"
 `
       },
       { role:"user", content:message }
@@ -63,12 +66,11 @@ If nothing important → type = "none"
   try{
     parsed = JSON.parse(extract.choices[0].message.content);
   }catch{
-    return null;
+    return;
   }
 
-  if(parsed.type === "none") return null;
+  if(parsed.type === "none" || !parsed.title) return;
 
-  // 🔄 FIND EXISTING
   let existing = await Memory.findOne({
     title:{ $regex: parsed.title, $options:"i" }
   });
@@ -98,13 +100,50 @@ app.post("/chat", async (req,res)=>{
 
   try{
 
-    // 🧠 AUTO MEMORY (ALWAYS RUNS)
+    // 🧠 AUTO MEMORY (SAFE)
     await autoMemory(message);
+
+    // =========================
+    // 🧠 BEST FRIEND QUERY
+    // =========================
+    if(message.toLowerCase().includes("best friend")){
+
+      const person = await Memory.findOne({
+        "details.relation": { $regex:"best friend", $options:"i" }
+      });
+
+      if(!person){
+        return res.json({
+          reply:{
+            title:"Not Found",
+            sections:[{
+              heading:"Best Friend",
+              points:["No data saved yet"]
+            }]
+          }
+        });
+      }
+
+      return res.json({
+        reply:{
+          title:"👤 Your Best Friend",
+          sections:[{
+            heading:person.title,
+            points:[
+              person.details.location,
+              person.details.job,
+              person.details.notes
+            ].filter(Boolean)
+          }]
+        }
+      });
+    }
 
     // =========================
     // 🧠 WHO IS
     // =========================
     if(message.toLowerCase().includes("who is")){
+
       const name = message.split("who is")[1].trim();
 
       const person = await Memory.findOne({
@@ -130,7 +169,12 @@ app.post("/chat", async (req,res)=>{
           title:`👤 ${person.title}`,
           sections:[{
             heading:"Details",
-            points:Object.values(d).filter(Boolean)
+            points:[
+              d.relation,
+              d.location,
+              d.job,
+              d.notes
+            ].filter(Boolean)
           }]
         }
       });
@@ -145,16 +189,19 @@ app.post("/chat", async (req,res)=>{
       return res.json({
         reply:{
           title:"🧠 Memory",
-          sections:data.map(d=>({
-            heading:d.title,
-            points:Object.values(d.details || {}).filter(Boolean)
-          }))
+          sections:data.map(d=>{
+            const det = d.details || {};
+            return {
+              heading:d.title,
+              points:Object.values(det).filter(Boolean)
+            };
+          })
         }
       });
     }
 
     // =========================
-    // 🧠 NORMAL AI CHAT
+    // 🧠 NORMAL CHAT
     // =========================
     const ai = await openai.chat.completions.create({
       model:"gpt-4o-mini",
@@ -164,8 +211,8 @@ app.post("/chat", async (req,res)=>{
           content:`
 You are Wang AI.
 
-Talk like a human assistant.
-Be smart, natural, and helpful.
+Talk like ChatGPT.
+Be natural, smart, helpful.
 
 Return JSON:
 {
@@ -221,4 +268,4 @@ app.get("/memory", async (req,res)=>{
   res.json(data);
 });
 
-app.listen(3000, ()=>console.log("🚀 Next-Gen AI Running"));
+app.listen(3000, ()=>console.log("🚀 Wang AI Final Running"));
