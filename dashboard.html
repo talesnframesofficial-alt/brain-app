@@ -1,91 +1,70 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Anand's Brain 🧠</title>
-  <style>
-    body {
-      font-family: Arial;
-      background: #0f172a;
-      color: white;
-      padding: 20px;
-    }
+<title>Wang Memory</title>
 
-    h1 {
-      text-align: center;
-    }
+<style>
+body {
+  margin:0;
+  font-family:sans-serif;
+  background:#0b0f19;
+  color:white;
+}
 
-    .container {
-      display: flex;
-      gap: 20px;
-    }
+/* GRID */
+.grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, 200px);
+  gap:20px;
+  padding:20px;
+}
 
-    .box {
-      flex: 1;
-      background: #1e293b;
-      padding: 15px;
-      border-radius: 10px;
-      height: 400px;
-      overflow-y: auto;
-    }
+/* FOLDER */
+.folder {
+  background:rgba(0,0,0,0.6);
+  border:1px solid #38bdf8;
+  padding:20px;
+  border-radius:10px;
+  cursor:pointer;
+  text-align:center;
+  transition:0.3s;
+}
 
-    .item {
-      background: #334155;
-      padding: 10px;
-      margin: 8px 0;
-      border-radius: 6px;
-    }
+.folder:hover {
+  box-shadow:0 0 20px #38bdf8;
+  transform:scale(1.05);
+}
 
-    h2 {
-      text-align: center;
-    }
-  </style>
+/* FILE VIEW */
+#files {
+  padding:20px;
+}
+</style>
 </head>
+
 <body>
 
-<h1>🧠 Anand's Brain Dashboard</h1>
+<h2 style="padding:20px;">🧠 Wang Memory System</h2>
 
-<div class="container">
-
-  <!-- Wang Memory -->
-  <div class="box">
-    <h2>🤖 Wang Memory</h2>
-    <div id="wang"></div>
-  </div>
-
-  <!-- Structured Brain -->
-  <div class="box">
-    <h2>📂 Anand's Brain</h2>
-    <div id="brain"></div>
-  </div>
-
+<div class="grid">
+  <div class="folder" onclick="loadType('people')">👤 People</div>
+  <div class="folder" onclick="loadType('finance')">💰 Finance</div>
+  <div class="folder" onclick="loadType('plans')">📍 Plans</div>
+  <div class="folder" onclick="loadType('notes')">📝 Notes</div>
 </div>
 
+<div id="files"></div>
+
 <script>
-async function loadData() {
+async function loadType(type){
   const res = await fetch("https://brain-app-320i.onrender.com/memory");
   const data = await res.json();
 
-  const wangDiv = document.getElementById("wang");
-  const brainDiv = document.getElementById("brain");
+  const filtered = data.filter(d => d.type === type);
 
-  data.forEach(item => {
-
-    // Wang Memory (raw)
-    wangDiv.innerHTML += `
-      <div class="item">${item.rawText}</div>
-    `;
-
-    // Structured Brain
-    brainDiv.innerHTML += `
-      <div class="item">
-        <b>Category:</b> ${item.category} <br/>
-        <b>Data:</b> ${JSON.stringify(item.content)}
-      </div>
-    `;
-  });
+  document.getElementById("files").innerHTML =
+    filtered.map(d => `<div>📄 ${d.rawText}</div>`).join("");
 }
-
-loadData();
 </script>
 
 </body>
