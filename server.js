@@ -4,7 +4,7 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(express.json({ limit: "20mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
@@ -25,8 +25,6 @@ app.post("/chat", async (req, res) => {
   const { message } = req.body;
 
   try {
-    const memories = await Memory.find().limit(5);
-
     chatHistory.push({ role: "user", content: message });
 
     const response = await openai.chat.completions.create({
@@ -37,34 +35,55 @@ app.post("/chat", async (req, res) => {
           content: `
 You are Wang, a premium AI assistant.
 
-STRICT RULES:
-- Always respond in clean structured format
-- Use headings (##)
-- Use bullet points
-- Give short professional explanations
-- DO NOT dump plain paragraphs
-- Give recommendations clearly
+IMPORTANT:
+- Always return response in JSON format ONLY
 
-Be like ChatGPT premium.
+FORMAT:
+{
+ "title": "",
+ "sections": [
+   {
+     "heading": "",
+     "points": ["", ""],
+     "image_query": ""
+   }
+ ]
+}
+
+RULES:
+- Keep answers clean and professional
+- 3–4 sections max
+- Each section must have an image_query
+- Do NOT return plain text
 `
         },
         ...chatHistory.slice(-6)
       ]
     });
 
-    const reply = response.choices[0].message.content;
+    let raw = response.choices[0].message.content;
 
-    chatHistory.push({ role: "assistant", content: reply });
+    let reply;
+    try {
+      reply = JSON.parse(raw);
+    } catch {
+      reply = {
+        title: "Response",
+        sections: [
+          {
+            heading: "",
+            points: [raw],
+            image_query: "technology"
+          }
+        ]
+      };
+    }
 
     res.json({ reply });
 
   } catch (err) {
-    res.json({ reply: "Error: " + err.message });
+    res.json({ reply: { title: "Error", sections: [{ heading: "", points: [err.message] }] } });
   }
 });
 
 app.listen(3000, () => console.log("Server running"));
-
-
-
-
