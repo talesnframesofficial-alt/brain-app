@@ -5,9 +5,12 @@
   <style>
     body {
       margin: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background: radial-gradient(circle at top, #0f172a, #020617);
+      font-family: "Segoe UI", sans-serif;
+      background: #0b0f19;
       color: white;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
     /* HEADER */
@@ -16,14 +19,14 @@
       justify-content: space-between;
       align-items: center;
       padding: 15px 20px;
-      background: rgba(0,0,0,0.4);
-      border-bottom: 1px solid #1e293b;
+      background: #111827;
+      border-bottom: 1px solid #1f2937;
     }
 
     .title {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
-      color: #38bdf8;
+      color: #60a5fa;
     }
 
     .dashboard-btn {
@@ -37,19 +40,20 @@
 
     /* CHAT AREA */
     #chat {
-      height: 75vh;
+      flex: 1;
       overflow-y: auto;
       padding: 20px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 12px;
     }
 
     .msg {
       max-width: 70%;
-      padding: 10px 14px;
-      border-radius: 12px;
-      line-height: 1.4;
+      padding: 12px 16px;
+      border-radius: 14px;
+      line-height: 1.5;
+      animation: fadeIn 0.3s ease;
     }
 
     .user {
@@ -59,42 +63,51 @@
 
     .ai {
       align-self: flex-start;
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: #1f2937;
+      border: 1px solid #374151;
     }
 
-    /* INPUT AREA */
+    .typing {
+      font-style: italic;
+      opacity: 0.7;
+    }
+
+    @keyframes fadeIn {
+      from {opacity: 0; transform: translateY(5px);}
+      to {opacity: 1; transform: translateY(0);}
+    }
+
+    /* INPUT */
     .input-area {
       display: flex;
       padding: 15px;
-      border-top: 1px solid #1e293b;
-      background: rgba(0,0,0,0.5);
+      background: #111827;
+      border-top: 1px solid #1f2937;
     }
 
     input {
       flex: 1;
-      padding: 12px;
+      padding: 14px;
       border-radius: 8px;
       border: none;
-      outline: none;
-      background: #0f172a;
+      background: #1f2937;
       color: white;
-      border: 1px solid #334155;
+      outline: none;
     }
 
     button {
       margin-left: 10px;
-      padding: 12px 16px;
+      padding: 14px 18px;
       border: none;
       border-radius: 8px;
-      background: #38bdf8;
+      background: #60a5fa;
       color: black;
       font-weight: bold;
       cursor: pointer;
     }
 
     button:hover {
-      background: #0ea5e9;
+      background: #3b82f6;
     }
   </style>
 </head>
@@ -111,25 +124,28 @@
 
 <!-- INPUT -->
 <div class="input-area">
-  <input id="input" placeholder="Talk to Wang..." />
+  <input id="input" placeholder="Ask Wang anything..." />
   <button onclick="send()">Send</button>
 </div>
 
 <script>
 async function send() {
   const input = document.getElementById("input");
-  const msg = input.value;
-
+  const msg = input.value.trim();
   if (!msg) return;
 
   const chat = document.getElementById("chat");
 
-  // show user message
+  // USER MESSAGE
   chat.innerHTML += `<div class="msg user">${msg}</div>`;
-
   input.value = "";
 
-  // scroll down
+  // TYPING EFFECT
+  const typingDiv = document.createElement("div");
+  typingDiv.className = "msg ai typing";
+  typingDiv.innerText = "Wang is thinking...";
+  chat.appendChild(typingDiv);
+
   chat.scrollTop = chat.scrollHeight;
 
   try {
@@ -143,11 +159,14 @@ async function send() {
 
     const data = await res.json();
 
+    typingDiv.remove();
+
     chat.innerHTML += `<div class="msg ai">${data.reply}</div>`;
     chat.scrollTop = chat.scrollHeight;
 
   } catch (err) {
-    chat.innerHTML += `<div class="msg ai">Error connecting to server ❌</div>`;
+    typingDiv.remove();
+    chat.innerHTML += `<div class="msg ai">⚠️ Connection error</div>`;
   }
 }
 </script>
