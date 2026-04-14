@@ -7,170 +7,181 @@ const app = express();
 app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
-// 🔐 OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY
 });
 
-// 🧠 MongoDB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log("DB Error:", err));
+  .then(() => console.log("MongoDB connected ✅"));
 
-// 🧠 Memory Schema (SAFE)
+// 🧠 ADVANCED MEMORY STRUCTURE
 const Memory = mongoose.model("Memory", new mongoose.Schema({
-  type: String,
-  data: Object,
+  type: String,       // people, finance, plans
+  title: String,      // name or topic
+  details: Object,    // structured data
   rawText: String,
   createdAt: { type: Date, default: Date.now }
 }, { strict: false }));
 
-// 🧠 Detect category
-function detectType(text) {
-  if (/friend|father|mother|brother|sister|contact/i.test(text)) return "people";
-  if (/money|owe|salary|income|debt/i.test(text)) return "finance";
-  if (/plan|trip|travel|visit/i.test(text)) return "plans";
+let chatHistory = [];
+
+// 🧠 INTENT DETECTION (IMPORTANT)
+function detectIntent(text){
+  if(/remember|save|store|make note/i.test(text)) return "save";
+  if(/who|what|show|tell/i.test(text)) return "retrieve";
+  return "chat";
+}
+
+// 🧠 CATEGORY DETECTION
+function detectType(text){
+  if(/friend|father|mother|contact|name/i.test(text)) return "people";
+  if(/money|salary|owe|debt/i.test(text)) return "finance";
+  if(/plan|trip|travel/i.test(text)) return "plans";
   return "notes";
 }
 
-// 🧠 Chat memory (short-term)
-let chatHistory = [];
-
-// 💬 CHAT ROUTE
 app.post("/chat", async (req, res) => {
   const { message } = req.body;
 
   try {
-    if (!message) {
+    const intent = detectIntent(message);
+    const type = detectType(message);
+
+    // 🧠 SAVE LOGIC (SMART)
+    if(intent === "save"){
+
+      const aiExtract = await openai.chat.completions.create({
+        model:"gpt-4o-mini",
+        messages:[{
+          role:"system",
+          content:`
+Extract structured info.
+
+Return JSON:
+{
+ "title":"",
+ "details":{}
+}
+`
+        },
+        {role:"user", content:message}]
+      });
+
+      let parsed;
+      try {
+        parsed = JSON.parse(aiExtract.choices[0].message.content);
+      } catch {
+        parsed = { title:"Note", details:{ text: message } };
+      }
+
+      await Memory.create({
+        type,
+        title: parsed.title,
+        details: parsed.details,
+        rawText: message
+      });
+
       return res.json({
-        reply: {
-          title: "⚠️ Input Missing",
-          sections: [{
-            heading: "No message received",
-            points: ["Please type something to continue."],
-            image_query: "warning"
+        reply:{
+          title:"🧠 Saved Successfully",
+          sections:[{
+            heading:"Stored in memory",
+            points:[`Saved under ${type}`],
+            image_query:"database"
           }]
         }
       });
     }
 
-    // 🧠 Load recent memory
-    const memories = await Memory.find().sort({ createdAt: -1 }).limit(5);
+    // 🧠 RETRIEVE LOGIC
+    if(intent === "retrieve"){
+      const data = await Memory.find().sort({createdAt:-1}).limit(10);
 
-    // 🧠 Build system prompt (PERSONALITY)
-    const systemPrompt = `
-You are Wang — a highly intelligent, friendly, and professional AI assistant.
+      if(data.length === 0){
+        return res.json({
+          reply:{
+            title:"No Data Found",
+            sections:[{
+              heading:"Nothing stored yet",
+              points:["Try saving something first"],
+              image_query:"empty"
+            }]
+          }
+        });
+      }
 
-PERSONALITY:
-- Talk like a smart human (natural, not robotic)
-- Be slightly casual but respectful
-- Think before answering
-- If unclear → ASK a question
-- If multiple options → suggest best ones
-- Be helpful, not just informative
+      return res.json({
+        reply:{
+          title:"🧠 Your Stored Data",
+          sections:data.map(d=>({
+            heading:d.title || d.type,
+            points:[d.rawText],
+            image_query:d.type
+          }))
+        }
+      });
+    }
 
-BEHAVIOR:
-- Understand user intent deeply
-- If user says something vague → ask clarification
-- If user asks for suggestions → give 2-4 good options
-- If user shares personal info → remember it
-
-MEMORY CONTEXT:
-${JSON.stringify(memories)}
-
-RESPONSE FORMAT (VERY IMPORTANT):
-Return ONLY JSON:
-
-{
- "title": "",
- "sections": [
-   {
-     "heading": "",
-     "points": ["", ""],
-     "image_query": ""
-   }
- ]
-}
-
-RULES:
-- Clean formatting
-- No long paragraphs
-- Max 3–4 sections
-- Always helpful
-`;
-
-    // 🧠 Add conversation memory
-    chatHistory.push({ role: "user", content: message });
-
+    // 🧠 NORMAL CHAT (LIKE ME)
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...chatHistory.slice(-6)
+      model:"gpt-4o-mini",
+      messages:[
+        {
+          role:"system",
+          content:`
+You are Wang AI.
+
+Behave like ChatGPT:
+- Understand intent
+- Ask questions if unclear
+- Give suggestions
+- Be natural
+
+Return JSON format only.
+`
+        },
+        ...chatHistory.slice(-6),
+        {role:"user", content:message}
       ]
     });
 
     let raw = response.choices[0].message.content;
 
-    // 🧠 Parse safely
     let reply;
     try {
       reply = JSON.parse(raw);
-    } catch (e) {
+    } catch {
       reply = {
-        title: "Response",
-        sections: [{
-          heading: "AI Reply",
-          points: [raw],
-          image_query: "technology"
+        title:"Response",
+        sections:[{
+          heading:"AI",
+          points:[raw],
+          image_query:"ai"
         }]
       };
     }
 
-    // 🧠 Save important memory
-    if (/is my|I am|my name|my friend|I have/i.test(message)) {
-      await Memory.create({
-        type: detectType(message),
-        rawText: message,
-        data: { text: message }
-      });
-    }
-
-    // 🧠 Store assistant reply in short-term memory
-    chatHistory.push({
-      role: "assistant",
-      content: raw
-    });
+    chatHistory.push({ role:"user", content:message });
 
     res.json({ reply });
 
-  } catch (err) {
-    console.error(err);
-
+  } catch(err){
     res.json({
-      reply: {
-        title: "❌ Error",
-        sections: [{
-          heading: "Something went wrong",
-          points: [err.message],
-          image_query: "error"
+      reply:{
+        title:"Error",
+        sections:[{
+          heading:"Something went wrong",
+          points:[err.message],
+          image_query:"error"
         }]
       }
     });
   }
 });
 
-// 📂 MEMORY API
-app.get("/memory", async (req, res) => {
-  try {
-    const data = await Memory.find().sort({ createdAt: -1 });
-    res.json(data);
-  } catch (err) {
-    res.json([]);
-  }
+app.get("/memory", async (req,res)=>{
+  const data = await Memory.find().sort({createdAt:-1});
+  res.json(data);
 });
 
-// 🚀 START SERVER
-app.listen(3000, () => {
-  console.log("🚀 Wang AI Server Running");
-});
+app.listen(3000, ()=>console.log("🚀 Wang Level 2 Running"));
