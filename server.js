@@ -11,8 +11,10 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY
 });
 
+// ✅ DB CONNECT
 mongoose.connect(process.env.MONGO_URI)
-  .then(()=>console.log("MongoDB connected ✅"));
+  .then(()=>console.log("MongoDB connected ✅"))
+  .catch(err=>console.log(err));
 
 // 🧠 MEMORY MODEL
 const Memory = mongoose.model("Memory", new mongoose.Schema({
@@ -20,20 +22,23 @@ const Memory = mongoose.model("Memory", new mongoose.Schema({
   title: String,
   details: Object,
   rawText: String,
-  createdAt: { default: Date.now }
+  createdAt: { type: Date, default: Date.now }
 }, { strict:false }));
 
-// 🧠 INTENT
+// 🧠 DETECT SAVE
 function isSave(text){
-  return /is my|remember|save|add/i.test(text);
+  return /is my|remember|save|add|he is|she is/i.test(text);
 }
 
+// 💬 CHAT ROUTE
 app.post("/chat", async (req,res)=>{
   const { message } = req.body;
 
   try{
 
-    // 🧠 SAVE PEOPLE (SMART)
+    // =========================
+    // 🧠 SAVE PERSON (REWRITABLE)
+    // =========================
     if(isSave(message)){
 
       const extract = await openai.chat.completions.create({
@@ -42,7 +47,7 @@ app.post("/chat", async (req,res)=>{
           {
             role:"system",
             content:`
-Extract person details.
+Extract structured person info.
 
 Return JSON:
 {
@@ -71,18 +76,37 @@ Return JSON:
         };
       }
 
-      await Memory.create({
-        type:"people",
-        title: parsed.name,
-        details: parsed,
-        rawText: message
-      });
+      // 🔄 FIND EXISTING TILE
+      let existing = await Memory.findOne({ title: parsed.name });
+
+      if(existing){
+        // 🔥 MERGE DATA (NO LOSS)
+        existing.details = {
+          ...existing.details,
+          ...Object.fromEntries(
+            Object.entries(parsed).filter(([_,v])=>v && v !== "")
+          )
+        };
+
+        existing.rawText += " | " + message;
+
+        await existing.save();
+
+      }else{
+        // 🆕 CREATE NEW TILE
+        await Memory.create({
+          type:"people",
+          title: parsed.name,
+          details: parsed,
+          rawText: message
+        });
+      }
 
       return res.json({
         reply:{
-          title:`🧠 Saved: ${parsed.name}`,
+          title:`🧠 Updated: ${parsed.name}`,
           sections:[{
-            heading:"Person stored",
+            heading:"Memory Stored",
             points:[
               parsed.relation,
               parsed.location,
@@ -94,7 +118,9 @@ Return JSON:
       });
     }
 
-    // 🧠 RETRIEVE
+    // =========================
+    // 🧠 RETRIEVE MEMORY
+    // =========================
     if(/who|show|tell/i.test(message)){
       const data = await Memory.find().sort({createdAt:-1}).limit(5);
 
@@ -114,7 +140,9 @@ Return JSON:
       });
     }
 
-    // 🧠 NORMAL CHAT
+    // =========================
+    // 🧠 NORMAL CHAT (LIKE CHATGPT)
+    // =========================
     const response = await openai.chat.completions.create({
       model:"gpt-4o-mini",
       messages:[
@@ -123,17 +151,17 @@ Return JSON:
           content:`
 You are Wang AI.
 
-Talk naturally like ChatGPT.
-Ask questions if needed.
-Be smart and helpful.
+Talk naturally like a human assistant.
+Be smart, helpful, and ask questions if unclear.
 
-Return JSON:
+Return ONLY JSON:
+
 {
  "title":"",
  "sections":[
    {
      "heading":"",
-     "points":[""],
+     "points":["",""],
      "image_query":""
    }
  ]
@@ -151,13 +179,13 @@ Return JSON:
     try{
       const parsed = JSON.parse(raw);
 
-      if(!parsed.title){
+      if(!parsed.title || !parsed.sections){
         reply = {
           title:"Wang AI",
           sections:[{
             heading:"Response",
             points:[parsed.response || raw],
-            image_query:"ai"
+            image_query:"ai assistant"
           }]
         };
       } else {
@@ -170,7 +198,7 @@ Return JSON:
         sections:[{
           heading:"Response",
           points:[raw],
-          image_query:"ai"
+          image_query:"ai assistant"
         }]
       };
     }
@@ -178,21 +206,36 @@ Return JSON:
     res.json({ reply });
 
   }catch(err){
+    console.error(err);
+
     res.json({
       reply:{
         title:"Error",
         sections:[{
-          heading:"Issue",
-          points:[err.message]
+          heading:"Something went wrong",
+          points:[err.message],
+          image_query:"error"
         }]
       }
     });
   }
 });
 
+// =========================
+// 📂 MEMORY API
+// =========================
 app.get("/memory", async (req,res)=>{
-  const data = await Memory.find().sort({createdAt:-1});
-  res.json(data);
+  try{
+    const data = await Memory.find().sort({createdAt:-1});
+    res.json(data);
+  }catch{
+    res.json([]);
+  }
 });
 
-app.listen(3000, ()=>console.log("🚀 Wang AI Running"));
+// =========================
+// 🚀 START SERVER
+// =========================
+app.listen(3000, ()=>{
+  console.log("🚀 Wang AI Level 3.5 Running");
+});
