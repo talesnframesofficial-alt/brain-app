@@ -1,29 +1,76 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Wang AI</title>
+<title>Wang OS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 body {
   margin:0;
   font-family:system-ui;
-  background:#0b0f19;
+  background:black;
   color:white;
-  display:flex;
-  flex-direction:column;
-  height:100vh;
+  overflow:hidden;
 }
 
+/* BOOT SCREEN */
+#boot {
+  position:fixed;
+  width:100%;
+  height:100%;
+  background:black;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+  z-index:999;
+}
+
+.core {
+  width:120px;
+  height:120px;
+  border-radius:50%;
+  border:3px solid #38bdf8;
+  box-shadow:0 0 30px #38bdf8, inset 0 0 30px #38bdf8;
+  animation:pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { transform:scale(1); opacity:1; }
+  50% { transform:scale(1.1); opacity:0.6; }
+  100% { transform:scale(1); opacity:1; }
+}
+
+.boot-text {
+  margin-top:20px;
+  color:#38bdf8;
+  letter-spacing:2px;
+}
+
+/* MAIN APP */
+#app {
+  display:none;
+  height:100vh;
+  display:flex;
+  flex-direction:column;
+  background:#0b0f19;
+}
+
+/* HEADER */
 .header {
   display:flex;
   justify-content:space-between;
   padding:12px;
-  background:#111827;
+  background:#020617;
+  border-bottom:1px solid #38bdf8;
 }
 
-.title { color:#60a5fa; }
+.title {
+  color:#38bdf8;
+  font-weight:bold;
+}
 
+/* CHAT */
 .chat {
   flex:1;
   overflow-y:auto;
@@ -38,59 +85,72 @@ body {
 }
 
 .user {
-  align-self:flex-end;
   background:#2563eb;
+  margin-left:auto;
 }
 
 .ai {
-  background:#111827;
-  border:1px solid #374151;
+  background:#020617;
+  border:1px solid #38bdf8;
+  box-shadow:0 0 10px #38bdf8;
 }
 
-img {
-  width:100%;
-  border-radius:10px;
-  margin:10px 0;
-}
-
+/* INPUT */
 .input-area {
   display:flex;
   padding:10px;
+  background:#020617;
 }
 
 input {
   flex:1;
   padding:12px;
-  background:#1f2937;
-  border:none;
+  background:black;
+  border:1px solid #38bdf8;
   color:white;
 }
 
 button {
   margin-left:5px;
   padding:10px;
-  background:#3b82f6;
+  background:#38bdf8;
   border:none;
-  color:white;
 }
 </style>
-
 </head>
 
 <body>
 
+<!-- BOOT SCREEN -->
+<div id="boot">
+  <div class="core"></div>
+  <div class="boot-text">WANG OS INITIALIZING...</div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+
 <div class="header">
-  <div class="title">🧠 Wang AI</div>
+  <div class="title">⚡ WANG OS</div>
 </div>
 
 <div id="chat" class="chat"></div>
 
 <div class="input-area">
-  <input id="input" placeholder="Ask anything..." />
+  <input id="input" placeholder="Talk to Wang..." />
   <button onclick="send()">Send</button>
 </div>
 
+</div>
+
 <script>
+
+// BOOT ANIMATION
+setTimeout(()=>{
+  document.getElementById("boot").style.display="none";
+  document.getElementById("app").style.display="flex";
+}, 2500);
+
 const chat = document.getElementById("chat");
 
 function add(text, cls){
@@ -98,25 +158,20 @@ function add(text, cls){
   chat.scrollTop = chat.scrollHeight;
 }
 
-// render AI nicely
+// render AI
 function renderAI(data){
   let html = `<h2>${data.title}</h2>`;
-
   data.sections.forEach(sec=>{
     html += `<h3>${sec.heading}</h3>`;
-
-    if(sec.image_query){
-      html += `<img src="https://source.unsplash.com/600x300/?${sec.image_query}">`;
-    }
-
+    html += `<img src="https://source.unsplash.com/600x300/?${sec.image_query}">`;
     sec.points.forEach(p=>{
       html += `<div>• ${p}</div>`;
     });
   });
-
   return html;
 }
 
+// SEND
 async function send(){
   const input = document.getElementById("input");
   const msg = input.value.trim();
@@ -125,7 +180,7 @@ async function send(){
   add(msg,"user");
   input.value="";
 
-  add("Thinking...","ai");
+  add("⚡ Processing...","ai");
 
   const res = await fetch("https://brain-app-320i.onrender.com/chat",{
     method:"POST",
