@@ -1,16 +1,16 @@
 import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
-import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
 const MONGO_URI = process.env.MONGO_URI;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENAI_KEY = process.env.OPENAI_KEY;
 
-// ✅ DB
+// ✅ MongoDB
 mongoose.connect(MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"))
   .catch(err => console.log(err));
@@ -25,10 +25,8 @@ const MemorySchema = new mongoose.Schema({
 
 const Memory = mongoose.model("Memory", MemorySchema);
 
-// ✅ NEW GEMINI SETUP
-const ai = new GoogleGenAI({
-  apiKey: GEMINI_API_KEY
-});
+// ✅ OpenAI setup
+const openai = new OpenAI({ apiKey: OPENAI_KEY });
 
 // ✅ JSON extractor
 function extractJSON(text) {
@@ -42,15 +40,23 @@ function extractJSON(text) {
   }
 }
 
-// 🚀 MAIN ROUTE
+// 🚀 MAIN API
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 🧠 Decision
-    const decisionRes = await ai.models.generateContent({
-      model: "gemini-2.0-flash",
-      contents: `
+    // 🧠 STEP 1 — Decide
+    const decisionRes = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `
+You are a personal brain assistant.
+
+Classify input into:
+people, finance, plans, medical, notes
+
 Return ONLY JSON:
 {
  "action": "store" or "retrieve",
@@ -58,13 +64,13 @@ Return ONLY JSON:
  "data": {},
  "query": ""
 }
-
-User input:
-${userMessage}
 `
+        },
+        { role: "user", content: userMessage }
+      ]
     });
 
-    const decisionText = decisionRes.text;
+    const decisionText = decisionRes.choices[0].message.content;
     const decision = extractJSON(decisionText);
 
     if (!decision) {
@@ -79,7 +85,7 @@ ${userMessage}
         rawText: userMessage
       });
 
-      return res.json({ reply: "Saved ✅" });
+      return res.json({ reply: "Saved to your brain ✅" });
     }
 
     // 🔍 RETRIEVE
@@ -88,18 +94,20 @@ ${userMessage}
         category: decision.category
       }).limit(10);
 
-      const answerRes = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: `
-Answer using this data:
-${JSON.stringify(data)}
-
-User question:
-${userMessage}
-`
+      const answerRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `Answer using this data: ${JSON.stringify(data)}`
+          },
+          { role: "user", content: userMessage }
+        ]
       });
 
-      return res.json({ reply: answerRes.text });
+      return res.json({
+        reply: answerRes.choices[0].message.content
+      });
     }
 
     res.json({ reply: "Not sure 🤷" });
@@ -110,6 +118,7 @@ ${userMessage}
   }
 });
 
+// ✅ Root
 app.get("/", (req, res) => {
   res.send("AI Brain Running 🚀");
 });
