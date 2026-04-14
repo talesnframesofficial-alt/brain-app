@@ -124,3 +124,8 @@ app.get("/", (req, res) => {
 });
 
 app.listen(3000, () => console.log("Server running"));
+
+app.get("/memory", async (req, res) => {
+  const data = await Memory.find().sort({ createdAt: -1 });
+  res.json(data);
+});
