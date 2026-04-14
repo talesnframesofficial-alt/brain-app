@@ -4,153 +4,78 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 app.use(cors());
 
-const MONGO_URI = process.env.MONGO_URI;
-const OPENAI_KEY = process.env.OPENAI_KEY;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
 
-// ✅ MongoDB
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("MongoDB connected ✅"))
-  .catch(err => console.log(err));
+// DB
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB connected ✅"));
 
-// ✅ Schema
-const MemorySchema = new mongoose.Schema({
+const Memory = mongoose.model("Memory", new mongoose.Schema({
   category: String,
   content: Object,
   rawText: String,
   createdAt: { type: Date, default: Date.now }
-});
+}));
 
-const Memory = mongoose.model("Memory", MemorySchema);
+// 🧠 conversation memory (in RAM for now)
+let chatHistory = [];
 
-// ✅ OpenAI
-const openai = new OpenAI({ apiKey: OPENAI_KEY });
-
-// ✅ JSON extractor
-function extractJSON(text) {
-  try {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1) return null;
-    return JSON.parse(text.substring(start, end + 1));
-  } catch {
-    return null;
-  }
-}
-
-// 🚀 MAIN ROUTE
 app.post("/chat", async (req, res) => {
-  const userMessage = req.body.message;
+  const { message } = req.body;
 
   try {
-    // 🧠 STEP 1 — INTENT DETECTION
-    const decisionRes = await openai.chat.completions.create({
+    // add memory context
+    const pastMemories = await Memory.find().limit(5);
+
+    const systemPrompt = `
+You are Wang, a premium AI assistant.
+
+Behave like ChatGPT:
+- Understand intent deeply
+- Be structured and professional
+- Use headings, bullet points
+- Give intelligent suggestions
+
+You also have memory:
+${JSON.stringify(pastMemories)}
+`;
+
+    chatHistory.push({ role: "user", content: message });
+
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        {
-          role: "system",
-          content: `
-You are a smart personal AI brain.
-
-Decide intent:
-
-- store → if user gives personal info to remember
-- retrieve → if asking about stored info
-- answer → general question or suggestion
-
-Categories:
-people, finance, plans, medical, notes
-
-Return ONLY JSON:
-{
- "action": "store" or "retrieve" or "answer",
- "category": "",
- "data": {},
- "query": ""
-}
-`
-        },
-        { role: "user", content: userMessage }
+        { role: "system", content: systemPrompt },
+        ...chatHistory.slice(-6) // last messages only
       ]
     });
 
-    const decisionText = decisionRes.choices[0].message.content;
-    const decision = extractJSON(decisionText);
+    const reply = response.choices[0].message.content;
 
-    if (!decision) {
-      return res.json({ reply: "Couldn't understand 🤔" });
-    }
-
-    // 🟢 STORE
-    if (decision.action === "store") {
+    // 🧠 auto smart storing (simple logic)
+    if (message.includes("is my") || message.includes("I am")) {
       await Memory.create({
-        category: decision.category,
-        content: decision.data,
-        rawText: userMessage
-      });
-
-      return res.json({ reply: "Saved to your brain ✅" });
-    }
-
-    // 🔍 RETRIEVE
-    if (decision.action === "retrieve") {
-      const data = await Memory.find({
-        category: decision.category
-      }).limit(10);
-
-      const answerRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Answer using this data: ${JSON.stringify(data)}`
-          },
-          { role: "user", content: userMessage }
-        ]
-      });
-
-      return res.json({
-        reply: answerRes.choices[0].message.content
+        category: "people",
+        rawText: message,
+        content: { text: message }
       });
     }
 
-    // 🤖 GENERAL ANSWER (THIS FIXES YOUR ISSUE)
-    if (decision.action === "answer") {
-      const answerRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: "You are a helpful smart assistant. Answer clearly."
-          },
-          { role: "user", content: userMessage }
-        ]
-      });
+    chatHistory.push({ role: "assistant", content: reply });
 
-      return res.json({
-        reply: answerRes.choices[0].message.content
-      });
-    }
-
-    res.json({ reply: "Not sure 🤷" });
+    res.json({ reply });
 
   } catch (err) {
-    console.log(err);
     res.json({ reply: "Error: " + err.message });
   }
 });
 
-// 📂 MEMORY ROUTE (for dashboard)
+// memory API
 app.get("/memory", async (req, res) => {
-  const data = await Memory.find().sort({ createdAt: -1 });
-  res.json(data);
-});
-
-// ✅ ROOT
-app.get("/", (req, res) => {
-  res.send("AI Brain Running 🚀");
+  res.json(await Memory.find().sort({ createdAt: -1 }));
 });
 
 app.listen(3000, () => console.log("Server running"));
