@@ -4,14 +4,13 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json());
 app.use(cors());
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY
 });
 
-// DB
 mongoose.connect(process.env.MONGO_URI)
   .then(()=>console.log("MongoDB connected ✅"));
 
@@ -21,66 +20,95 @@ const Memory = mongoose.model("Memory", new mongoose.Schema({
   title: String,
   details: Object,
   rawText: String,
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { default: Date.now }
 }, { strict:false }));
 
-let chatHistory = [];
-
 // 🧠 INTENT
-function detectIntent(text){
-  if(/remember|save|store|add/i.test(text)) return "save";
-  if(/who|what|show|tell|find/i.test(text)) return "retrieve";
-  return "chat";
+function isSave(text){
+  return /is my|remember|save|add/i.test(text);
 }
 
-// 🧠 TYPE
-function detectType(text){
-  if(/friend|father|mother|name|person/i.test(text)) return "people";
-  if(/money|salary|debt/i.test(text)) return "finance";
-  if(/trip|plan|travel/i.test(text)) return "plans";
-  return "notes";
-}
-
-// 💬 CHAT
 app.post("/chat", async (req,res)=>{
   const { message } = req.body;
 
   try{
-    const intent = detectIntent(message);
-    const type = detectType(message);
 
-    // 🧠 SAVE
-    if(intent === "save"){
+    // 🧠 SAVE PEOPLE (SMART)
+    if(isSave(message)){
+
+      const extract = await openai.chat.completions.create({
+        model:"gpt-4o-mini",
+        messages:[
+          {
+            role:"system",
+            content:`
+Extract person details.
+
+Return JSON:
+{
+ "name":"",
+ "relation":"",
+ "location":"",
+ "job":"",
+ "notes":""
+}
+`
+          },
+          { role:"user", content:message }
+        ]
+      });
+
+      let parsed;
+      try{
+        parsed = JSON.parse(extract.choices[0].message.content);
+      }catch{
+        parsed = {
+          name:"Unknown",
+          relation:"",
+          location:"",
+          job:"",
+          notes:message
+        };
+      }
+
       await Memory.create({
-        type,
-        title: message.slice(0,40),
-        details:{text:message},
+        type:"people",
+        title: parsed.name,
+        details: parsed,
         rawText: message
       });
 
       return res.json({
         reply:{
-          title:"🧠 Saved",
+          title:`🧠 Saved: ${parsed.name}`,
           sections:[{
-            heading:"Memory stored",
-            points:[message],
-            image_query:"database"
+            heading:"Person stored",
+            points:[
+              parsed.relation,
+              parsed.location,
+              parsed.job
+            ].filter(Boolean),
+            image_query:"person profile"
           }]
         }
       });
     }
 
     // 🧠 RETRIEVE
-    if(intent === "retrieve"){
+    if(/who|show|tell/i.test(message)){
       const data = await Memory.find().sort({createdAt:-1}).limit(5);
 
       return res.json({
         reply:{
           title:"🧠 Your Memory",
           sections:data.map(d=>({
-            heading:d.type,
-            points:[d.rawText],
-            image_query:d.type
+            heading:d.title,
+            points:[
+              d.details.relation,
+              d.details.location,
+              d.details.job
+            ].filter(Boolean),
+            image_query:"person"
           }))
         }
       });
@@ -95,25 +123,24 @@ app.post("/chat", async (req,res)=>{
           content:`
 You are Wang AI.
 
-Talk naturally like a smart assistant.
+Talk naturally like ChatGPT.
 Ask questions if needed.
+Be smart and helpful.
 
-Return ONLY JSON:
-
+Return JSON:
 {
  "title":"",
  "sections":[
-  {
-   "heading":"",
-   "points":["",""],
-   "image_query":""
-  }
+   {
+     "heading":"",
+     "points":[""],
+     "image_query":""
+   }
  ]
 }
 `
         },
-        ...chatHistory.slice(-5),
-        {role:"user", content:message}
+        { role:"user", content:message }
       ]
     });
 
@@ -124,7 +151,7 @@ Return ONLY JSON:
     try{
       const parsed = JSON.parse(raw);
 
-      if(!parsed.title || !parsed.sections){
+      if(!parsed.title){
         reply = {
           title:"Wang AI",
           sections:[{
@@ -148,8 +175,6 @@ Return ONLY JSON:
       };
     }
 
-    chatHistory.push({role:"user", content:message});
-
     res.json({ reply });
 
   }catch(err){
@@ -158,15 +183,13 @@ Return ONLY JSON:
         title:"Error",
         sections:[{
           heading:"Issue",
-          points:[err.message],
-          image_query:"error"
+          points:[err.message]
         }]
       }
     });
   }
 });
 
-// MEMORY API
 app.get("/memory", async (req,res)=>{
   const data = await Memory.find().sort({createdAt:-1});
   res.json(data);
