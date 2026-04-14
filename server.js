@@ -4,7 +4,7 @@ import cors from "cors";
 import OpenAI from "openai";
 
 const app = express();
-app.use(express.json({ limit: "10mb" }));
+app.use(express.json({ limit: "20mb" }));
 app.use(cors());
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
@@ -13,54 +13,74 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected ✅"));
 
+// structured memory
 const Memory = mongoose.model("Memory", new mongoose.Schema({
-  category: String,
-  content: Object,
+  type: String, // people, finance etc
+  data: Object,
   rawText: String,
   createdAt: { type: Date, default: Date.now }
 }));
 
-// 🧠 conversation memory (in RAM for now)
 let chatHistory = [];
 
+function detectCategory(text) {
+  if (text.includes("friend") || text.includes("name")) return "people";
+  if (text.includes("money") || text.includes("owe")) return "finance";
+  return "notes";
+}
+
 app.post("/chat", async (req, res) => {
-  const { message } = req.body;
+  const { message, image } = req.body;
 
   try {
-    // add memory context
-    const pastMemories = await Memory.find().limit(5);
+    const memories = await Memory.find().limit(5);
 
-    const systemPrompt = `
-You are Wang, a premium AI assistant.
+    let userContent = message;
 
-Behave like ChatGPT:
-- Understand intent deeply
-- Be structured and professional
-- Use headings, bullet points
-- Give intelligent suggestions
-
-You also have memory:
-${JSON.stringify(pastMemories)}
-`;
+    // 🖼️ IMAGE SUPPORT
+    if (image) {
+      userContent = [
+        { type: "text", text: message },
+        {
+          type: "image_url",
+          image_url: { url: image }
+        }
+      ];
+    }
 
     chatHistory.push({ role: "user", content: message });
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: systemPrompt },
-        ...chatHistory.slice(-6) // last messages only
+        {
+          role: "system",
+          content: `
+You are Wang, a premium futuristic AI assistant.
+
+- Think deeply
+- Respond like ChatGPT
+- Be structured
+- Give suggestions
+- Be intelligent and helpful
+
+User memory:
+${JSON.stringify(memories)}
+`
+        },
+        ...chatHistory.slice(-6),
+        { role: "user", content: userContent }
       ]
     });
 
     const reply = response.choices[0].message.content;
 
-    // 🧠 auto smart storing (simple logic)
+    // 🧠 SMART MEMORY STORE
     if (message.includes("is my") || message.includes("I am")) {
       await Memory.create({
-        category: "people",
-        rawText: message,
-        content: { text: message }
+        type: detectCategory(message),
+        data: { text: message },
+        rawText: message
       });
     }
 
@@ -73,7 +93,7 @@ ${JSON.stringify(pastMemories)}
   }
 });
 
-// memory API
+// dashboard
 app.get("/memory", async (req, res) => {
   res.json(await Memory.find().sort({ createdAt: -1 }));
 });
