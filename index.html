@@ -13,7 +13,7 @@ body{
   overflow:hidden;
 }
 
-/* 🧠 BACKGROUND */
+/* 🧠 BACKGROUND CANVAS */
 #neural{
   position:fixed;
   width:100%;
@@ -28,7 +28,8 @@ body{
   display:flex;
   justify-content:space-between;
   padding:12px;
-  background:rgba(0,0,0,0.5);
+  background:rgba(0,0,0,0.4);
+  backdrop-filter:blur(8px);
 }
 
 /* 💬 CHAT CENTER */
@@ -50,16 +51,17 @@ body{
   border-radius:12px;
   width:fit-content;
   max-width:100%;
-  line-height:1.5;
 }
 
 .user{
   background:#3b82f6;
   margin-left:auto;
+  box-shadow:0 0 10px #3b82f6;
 }
 
 .ai{
-  background:#222;
+  background:#111;
+  box-shadow:0 0 10px cyan;
 }
 
 /* INPUT */
@@ -77,9 +79,10 @@ body{
   width:90%;
   max-width:700px;
   display:flex;
-  background:#222;
+  background:#1a1a1a;
   border-radius:12px;
   padding:10px;
+  box-shadow:0 0 15px cyan;
 }
 
 input{
@@ -100,15 +103,16 @@ button{
   cursor:pointer;
 }
 
-/* ⏱️ CLOCK LEFT */
+/* CLOCK */
 .clock{
   position:fixed;
   top:20px;
   left:20px;
   font-size:13px;
+  color:#00eaff;
 }
 
-/* ⚡ HUD RIGHT */
+/* HUD */
 .hud{
   position:fixed;
   top:20px;
@@ -116,6 +120,7 @@ button{
   border:1px solid cyan;
   padding:10px;
   font-size:12px;
+  box-shadow:0 0 15px cyan;
 }
 
 /* GRAPH */
@@ -126,11 +131,7 @@ button{
   width:200px;
   height:120px;
   border:1px solid cyan;
-}
-
-/* MOBILE */
-@media(max-width:600px){
-  .msg{max-width:90%;}
+  box-shadow:0 0 15px cyan;
 }
 </style>
 </head>
@@ -146,24 +147,19 @@ button{
 
 <div id="chat" class="chat"></div>
 
-<!-- CLOCK -->
 <div class="clock" id="clock"></div>
 
-<!-- HUD -->
 <div class="hud">
   <div id="weather">Loading...</div>
-  <div>AI: ONLINE</div>
+  <div>⚡ AI ONLINE</div>
 </div>
 
-<!-- GRAPH -->
 <div class="graph">
   <canvas id="chart"></canvas>
 </div>
 
-<!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
-
     <button onclick="voice()">🎤</button>
 
     <input id="input" placeholder="Message Wang..." />
@@ -172,7 +168,6 @@ button{
     <button onclick="document.getElementById('img').click()">📎</button>
 
     <button onclick="send()">➤</button>
-
   </div>
 </div>
 
@@ -190,7 +185,7 @@ function add(text,cls){
   chat.scrollTop=chat.scrollHeight;
 }
 
-// FORMAT RESPONSE
+// FORMAT
 function format(data){
   if(!data || !data.sections) return "⚠️ Error";
 
@@ -212,25 +207,15 @@ async function send(){
   add(msg,"user");
   input.value="";
 
-  try{
-    const res=await fetch("https://brain-app-320i.onrender.com/chat",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:msg})
-    });
+  const res=await fetch("https://brain-app-320i.onrender.com/chat",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message:msg})
+  });
 
-    const data=await res.json();
-    add(format(data.reply),"ai");
-
-  }catch{
-    add("❌ Server error","ai");
-  }
+  const data=await res.json();
+  add(format(data.reply),"ai");
 }
-
-// ENTER
-document.getElementById("input").addEventListener("keypress",e=>{
-  if(e.key==="Enter") send();
-});
 
 // VOICE
 function voice(){
@@ -243,43 +228,40 @@ function voice(){
 
 // CLOCK
 setInterval(()=>{
-  document.getElementById("clock").innerText=
-    new Date().toLocaleString();
+  document.getElementById("clock").innerText=new Date().toLocaleString();
 },1000);
 
 // WEATHER
 fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&current_weather=true")
 .then(r=>r.json())
 .then(d=>{
-  document.getElementById("weather").innerText=
-    "🌡️ "+d.current_weather.temperature+"°C";
+  document.getElementById("weather").innerText="🌡️ "+d.current_weather.temperature+"°C";
 });
 
 // GRAPH
 new Chart(document.getElementById("chart"),{
   type:"line",
   data:{
-    labels:["Mon","Tue","Wed","Thu","Fri"],
-    datasets:[{
-      data:[10,20,15,30,25],
-      borderColor:"cyan"
-    }]
+    labels:["Mon","Tue","Wed","Thu"],
+    datasets:[{data:[10,20,15,25],borderColor:"cyan"}]
   }
 });
 
-// 🧠 GOLD + BLUE NEURAL
+// ⚡ ELECTRIFYING JARVIS NEURAL
 const c=document.getElementById("neural");
 const ctx=c.getContext("2d");
 c.width=innerWidth;
 c.height=innerHeight;
 
 let nodes=[];
-for(let i=0;i<90;i++){
+let pulses=[];
+
+for(let i=0;i<100;i++){
   nodes.push({
     x:Math.random()*c.width,
     y:Math.random()*c.height,
-    vx:(Math.random()-0.5)*0.7,
-    vy:(Math.random()-0.5)*0.7
+    vx:(Math.random()-0.5)*0.6,
+    vy:(Math.random()-0.5)*0.6
   });
 }
 
@@ -291,32 +273,45 @@ function draw(){
     n.x+=n.vx;
     n.y+=n.vy;
 
-    // GOLD NODE
     ctx.beginPath();
     ctx.arc(n.x,n.y,2,0,Math.PI*2);
-    ctx.fillStyle="#FFD700";
+    ctx.fillStyle="#00eaff";
+    ctx.shadowBlur=15;
+    ctx.shadowColor="#00eaff";
     ctx.fill();
 
     nodes.forEach(m=>{
       let d=Math.hypot(n.x-m.x,n.y-m.y);
 
-      if(d<130){
+      if(d<140){
         ctx.beginPath();
         ctx.moveTo(n.x,n.y);
         ctx.lineTo(m.x,m.y);
 
-        ctx.strokeStyle = d<60
-          ? "rgba(255,215,0,0.4)"   // gold
-          : "rgba(0,200,255,0.25)"; // blue
+        ctx.strokeStyle=d<60
+          ? "rgba(255,215,0,0.5)"
+          : "rgba(0,200,255,0.2)";
 
         ctx.stroke();
       }
     });
   });
 
+  pulses.forEach(p=>{
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.strokeStyle="rgba(255,215,0,0.6)";
+    ctx.stroke();
+    p.r+=2;
+  });
+
   requestAnimationFrame(draw);
 }
 draw();
+
+window.addEventListener("click",e=>{
+  pulses.push({x:e.clientX,y:e.clientY,r:5});
+});
 </script>
 
 </body>
