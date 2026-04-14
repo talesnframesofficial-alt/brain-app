@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Wang OS</title>
+<title>Wang AI OS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -13,7 +13,7 @@ body{
   overflow:hidden;
 }
 
-/* 🧠 NEURAL BACKGROUND */
+/* 🌐 NETWORK BACKGROUND */
 #neural{
   position:fixed;
   width:100%;
@@ -21,47 +21,34 @@ body{
   z-index:-2;
 }
 
-/* HEADER */
-.header{
-  position:fixed;
-  width:100%;
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
-  background:rgba(0,0,0,0.5);
-  backdrop-filter:blur(10px);
-}
-
-/* CHAT CONTAINER (CENTERED) */
+/* 💬 CHAT CENTER */
 .chat{
   position:absolute;
-  top:70px;
+  top:80px;
   bottom:100px;
-  width:100%;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
+  left:50%;
+  transform:translateX(-50%);
+  width:90%;
+  max-width:700px;
   overflow-y:auto;
 }
 
 /* MESSAGE */
 .msg{
-  max-width:700px;
-  width:fit-content;
   padding:12px 16px;
-  margin:8px;
-  border-radius:10px;
-  line-height:1.5;
+  margin:10px 0;
+  border-radius:12px;
+  width:fit-content;
+  max-width:100%;
 }
 
 .user{
   background:#3b82f6;
-  align-self:flex-end;
+  margin-left:auto;
 }
 
 .ai{
   background:#222;
-  align-self:flex-start;
 }
 
 /* INPUT */
@@ -97,16 +84,21 @@ button{
   border:none;
   color:white;
   font-size:18px;
-  margin:0 5px;
-  cursor:pointer;
+  margin:0 6px;
 }
 
-/* HUD */
+/* ⚡ LEFT CLOCK */
+.clock-box{
+  position:fixed;
+  top:20px;
+  left:20px;
+}
+
+/* ⚡ RIGHT HUD */
 .hud{
   position:fixed;
-  top:70px;
+  top:20px;
   right:20px;
-  background:rgba(0,0,0,0.6);
   border:1px solid cyan;
   padding:10px;
   font-size:12px;
@@ -117,17 +109,18 @@ button{
   position:fixed;
   bottom:100px;
   right:20px;
-  width:220px;
-  height:140px;
-  background:rgba(0,0,0,0.6);
+  width:200px;
+  height:120px;
   border:1px solid cyan;
-  padding:10px;
 }
 
-/* MOBILE */
-@media(max-width:600px){
-  .msg{max-width:90%;}
-  .input-box{width:95%;}
+/* HEADER */
+.header{
+  position:fixed;
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
 }
 </style>
 </head>
@@ -143,10 +136,14 @@ button{
 
 <div id="chat" class="chat"></div>
 
-<!-- HUD -->
+<!-- CLOCK LEFT -->
+<div class="clock-box">
+  <!-- already inserted widget above -->
+</div>
+
+<!-- HUD RIGHT -->
 <div class="hud">
-  <div id="time"></div>
-  <div id="weather">Loading...</div>
+  <div id="weather"></div>
   <div>AI: ONLINE</div>
 </div>
 
@@ -158,7 +155,6 @@ button{
 <!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
-
     <button onclick="voice()">🎤</button>
 
     <input id="input" placeholder="Message Wang..." />
@@ -167,7 +163,6 @@ button{
     <button onclick="document.getElementById('img').click()">📎</button>
 
     <button onclick="send()">➤</button>
-
   </div>
 </div>
 
@@ -178,10 +173,10 @@ const chat=document.getElementById("chat");
 
 // ADD MESSAGE
 function add(text,cls){
-  const div=document.createElement("div");
-  div.className="msg "+cls;
-  div.innerHTML=text;
-  chat.appendChild(div);
+  const d=document.createElement("div");
+  d.className="msg "+cls;
+  d.innerHTML=text;
+  chat.appendChild(d);
   chat.scrollTop=chat.scrollHeight;
 }
 
@@ -191,7 +186,6 @@ function format(data){
   data.sections.forEach(s=>{
     html+=`<b>${s.heading}</b>`;
     s.points.forEach(p=>html+=`<div>• ${p}</div>`);
-    html+="<br>";
   });
   return html;
 }
@@ -224,13 +218,7 @@ function voice(){
   rec.start();
 }
 
-// TIME
-setInterval(()=>{
-  document.getElementById("time").innerText=
-    new Date().toLocaleString();
-},1000);
-
-// WEATHER (Trivandrum)
+// WEATHER
 fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&current_weather=true")
 .then(r=>r.json())
 .then(d=>{
@@ -242,50 +230,38 @@ fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&curr
 new Chart(document.getElementById("chart"),{
   type:"line",
   data:{
-    labels:["Mon","Tue","Wed","Thu","Fri"],
-    datasets:[{
-      data:[10,20,15,30,25],
-      borderColor:"cyan"
-    }]
+    labels:["Mon","Tue","Wed","Thu"],
+    datasets:[{data:[10,20,15,25],borderColor:"cyan"}]
   }
 });
 
-// NEURAL
+// 🧠 INDIA-MAP STYLE FLOW
 const c=document.getElementById("neural");
 const ctx=c.getContext("2d");
 c.width=innerWidth;c.height=innerHeight;
 
-let nodes=[];
-for(let i=0;i<80;i++){
-  nodes.push({
+let lines=[];
+for(let i=0;i<60;i++){
+  lines.push({
     x:Math.random()*c.width,
     y:Math.random()*c.height,
-    vx:(Math.random()-0.5),
-    vy:(Math.random()-0.5)
+    vx:Math.random()*2
   });
 }
 
 function draw(){
-  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle="rgba(0,0,0,0.2)";
+  ctx.fillRect(0,0,c.width,c.height);
 
-  nodes.forEach(n=>{
-    n.x+=n.vx;n.y+=n.vy;
-
+  lines.forEach(l=>{
     ctx.beginPath();
-    ctx.arc(n.x,n.y,2,0,Math.PI*2);
-    ctx.fillStyle="#38bdf8";
-    ctx.fill();
+    ctx.moveTo(l.x,l.y);
+    ctx.lineTo(l.x+l.vx*10,l.y);
+    ctx.strokeStyle="rgba(0,255,255,0.5)";
+    ctx.stroke();
 
-    nodes.forEach(m=>{
-      let d=Math.hypot(n.x-m.x,n.y-m.y);
-      if(d<120){
-        ctx.beginPath();
-        ctx.moveTo(n.x,n.y);
-        ctx.lineTo(m.x,m.y);
-        ctx.strokeStyle="rgba(56,189,248,0.2)";
-        ctx.stroke();
-      }
-    });
+    l.x+=l.vx;
+    if(l.x>c.width) l.x=0;
   });
 
   requestAnimationFrame(draw);
