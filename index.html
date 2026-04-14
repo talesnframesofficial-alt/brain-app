@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-*{box-sizing:border-box;}
 body{
   margin:0;
   font-family:system-ui;
@@ -22,34 +21,9 @@ body{
   z-index:-2;
 }
 
-/* 📊 GRAPH PANEL */
-.graph-box{
-  position:fixed;
-  bottom:20px;
-  right:20px;
-  width:250px;
-  height:150px;
-  background:rgba(0,0,0,0.6);
-  border:1px solid #38bdf8;
-  border-radius:10px;
-  padding:10px;
-}
-
-/* ⚡ HUD PANEL */
-.hud{
-  position:fixed;
-  top:70px;
-  right:20px;
-  background:rgba(0,0,0,0.6);
-  border:1px solid #38bdf8;
-  padding:10px;
-  border-radius:10px;
-  font-size:12px;
-}
-
 /* HEADER */
 .header{
-  position:absolute;
+  position:fixed;
   width:100%;
   display:flex;
   justify-content:space-between;
@@ -58,48 +32,56 @@ body{
   backdrop-filter:blur(10px);
 }
 
-/* CHAT */
+/* CHAT CONTAINER (CENTERED) */
 .chat{
   position:absolute;
-  top:60px;
-  bottom:90px;
+  top:70px;
+  bottom:100px;
   width:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
   overflow-y:auto;
-  padding:15px;
 }
 
 /* MESSAGE */
 .msg{
-  max-width:90%;
-  padding:10px;
-  margin:8px 0;
-  border-radius:8px;
-  word-wrap:break-word;
+  max-width:700px;
+  width:fit-content;
+  padding:12px 16px;
+  margin:8px;
+  border-radius:10px;
+  line-height:1.5;
 }
 
 .user{
   background:#3b82f6;
-  margin-left:auto;
+  align-self:flex-end;
 }
 
 .ai{
-  background:rgba(50,50,60,0.8);
+  background:#222;
+  align-self:flex-start;
 }
 
 /* INPUT */
 .input-area{
-  position:absolute;
+  position:fixed;
   bottom:0;
   width:100%;
+  display:flex;
+  justify-content:center;
   padding:10px;
-  background:rgba(0,0,0,0.7);
+  background:#111;
 }
 
 .input-box{
+  width:90%;
+  max-width:700px;
   display:flex;
   background:#222;
-  border-radius:10px;
-  padding:8px;
+  border-radius:12px;
+  padding:10px;
 }
 
 input{
@@ -116,52 +98,76 @@ button{
   color:white;
   font-size:18px;
   margin:0 5px;
+  cursor:pointer;
 }
 
-/* 📱 MOBILE FIX */
+/* HUD */
+.hud{
+  position:fixed;
+  top:70px;
+  right:20px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid cyan;
+  padding:10px;
+  font-size:12px;
+}
+
+/* GRAPH */
+.graph{
+  position:fixed;
+  bottom:100px;
+  right:20px;
+  width:220px;
+  height:140px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid cyan;
+  padding:10px;
+}
+
+/* MOBILE */
 @media(max-width:600px){
-  .graph-box{
-    width:160px;
-    height:100px;
-  }
-  .hud{
-    font-size:10px;
-  }
+  .msg{max-width:90%;}
+  .input-box{width:95%;}
 }
 </style>
 </head>
 
 <body>
 
-<!-- 🧠 BACKGROUND -->
 <canvas id="neural"></canvas>
 
-<!-- HEADER -->
 <div class="header">
   <div>🧠 Wang OS</div>
-  <button onclick="openDashboard()">📂</button>
+  <button onclick="window.open('dashboard.html')">📂</button>
 </div>
 
-<!-- CHAT -->
 <div id="chat" class="chat"></div>
 
 <!-- HUD -->
 <div class="hud">
   <div id="time"></div>
+  <div id="weather">Loading...</div>
   <div>AI: ONLINE</div>
 </div>
 
 <!-- GRAPH -->
-<div class="graph-box">
+<div class="graph">
   <canvas id="chart"></canvas>
 </div>
 
 <!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
+
     <button onclick="voice()">🎤</button>
+
     <input id="input" placeholder="Message Wang..." />
+
+    <input type="file" id="img" hidden>
+    <button onclick="document.getElementById('img').click()">📎</button>
+
     <button onclick="send()">➤</button>
+
   </div>
 </div>
 
@@ -170,13 +176,27 @@ button{
 <script>
 const chat=document.getElementById("chat");
 
-/* 🧠 ADD MESSAGE */
+// ADD MESSAGE
 function add(text,cls){
-  chat.innerHTML+=`<div class="msg ${cls}">${text}</div>`;
+  const div=document.createElement("div");
+  div.className="msg "+cls;
+  div.innerHTML=text;
+  chat.appendChild(div);
   chat.scrollTop=chat.scrollHeight;
 }
 
-/* 🚀 SEND */
+// FORMAT
+function format(data){
+  let html=`<b>${data.title}</b><br><br>`;
+  data.sections.forEach(s=>{
+    html+=`<b>${s.heading}</b>`;
+    s.points.forEach(p=>html+=`<div>• ${p}</div>`);
+    html+="<br>";
+  });
+  return html;
+}
+
+// SEND
 async function send(){
   const input=document.getElementById("input");
   const msg=input.value.trim();
@@ -192,57 +212,48 @@ async function send(){
   });
 
   const data=await res.json();
-
   add(format(data.reply),"ai");
 }
 
-/* FORMAT */
-function format(data){
-  let html=`<b>${data.title}</b>`;
-  data.sections.forEach(s=>{
-    html+=`<br><b>${s.heading}</b>`;
-    s.points.forEach(p=>html+=`<div>• ${p}</div>`);
-  });
-  return html;
-}
-
-/* 🎤 VOICE */
+// VOICE
 function voice(){
   const rec=new webkitSpeechRecognition();
   rec.onresult=e=>{
-    document.getElementById("input").value=e.results[0][0].transcript;
+    input.value=e.results[0][0].transcript;
   };
   rec.start();
 }
 
-/* ⏱️ TIME */
+// TIME
 setInterval(()=>{
   document.getElementById("time").innerText=
-    new Date().toLocaleTimeString();
+    new Date().toLocaleString();
 },1000);
 
-/* 📊 GRAPH */
+// WEATHER (Trivandrum)
+fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&current_weather=true")
+.then(r=>r.json())
+.then(d=>{
+  document.getElementById("weather").innerText=
+    "🌡️ "+d.current_weather.temperature+"°C";
+});
+
+// GRAPH
 new Chart(document.getElementById("chart"),{
   type:"line",
   data:{
     labels:["Mon","Tue","Wed","Thu","Fri"],
     datasets:[{
       data:[10,20,15,30,25],
-      borderColor:"#38bdf8"
+      borderColor:"cyan"
     }]
   }
 });
 
-/* 📂 DASHBOARD */
-function openDashboard(){
-  window.open("dashboard.html");
-}
-
-/* 🧠 NEURAL */
+// NEURAL
 const c=document.getElementById("neural");
 const ctx=c.getContext("2d");
-c.width=innerWidth;
-c.height=innerHeight;
+c.width=innerWidth;c.height=innerHeight;
 
 let nodes=[];
 for(let i=0;i<80;i++){
@@ -258,8 +269,7 @@ function draw(){
   ctx.clearRect(0,0,c.width,c.height);
 
   nodes.forEach(n=>{
-    n.x+=n.vx;
-    n.y+=n.vy;
+    n.x+=n.vx;n.y+=n.vy;
 
     ctx.beginPath();
     ctx.arc(n.x,n.y,2,0,Math.PI*2);
