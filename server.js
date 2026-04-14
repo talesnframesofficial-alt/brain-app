@@ -11,10 +11,12 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY
 });
 
+// ✅ DB CONNECT (UNCHANGED)
 mongoose.connect(process.env.MONGO_URI)
-  .then(()=>console.log("MongoDB connected ✅"));
+  .then(()=>console.log("MongoDB connected ✅"))
+  .catch(err=>console.log(err));
 
-// 🧠 MODEL
+// 🧠 MEMORY MODEL (UNCHANGED STRUCTURE)
 const Memory = mongoose.model("Memory", new mongoose.Schema({
   type:String,
   title:String,
@@ -24,10 +26,11 @@ const Memory = mongoose.model("Memory", new mongoose.Schema({
 },{ strict:false }));
 
 // ============================
-// 🧠 AUTO MEMORY (SMART)
+// 🧠 AUTO MEMORY ENGINE
 // ============================
 async function autoMemory(message){
 
+  // ❌ DO NOT SAVE QUESTIONS
   const isQuestion = /who|what|where|tell|show|\?/.test(message.toLowerCase());
   if(isQuestion) return;
 
@@ -40,8 +43,9 @@ async function autoMemory(message){
 Extract structured memory.
 
 IMPORTANT:
-- Only extract if meaningful
-- Name must be real name (no "who", "my", etc)
+- Only store meaningful info
+- Name must be real person name
+- Never return words like "who", "my"
 
 Return JSON:
 {
@@ -55,7 +59,7 @@ Return JSON:
    "notes":""
  }
 }
-If nothing → type = "none"
+If nothing useful → type = "none"
 `
       },
       { role:"user", content:message }
@@ -104,10 +108,9 @@ app.post("/chat", async (req,res)=>{
     await autoMemory(message);
 
     // =========================
-    // 🧠 BEST FRIEND QUERY
+    // 🧠 BEST FRIEND
     // =========================
     if(message.toLowerCase().includes("best friend")){
-
       const person = await Memory.findOne({
         "details.relation": { $regex:"best friend", $options:"i" }
       });
@@ -143,7 +146,6 @@ app.post("/chat", async (req,res)=>{
     // 🧠 WHO IS
     // =========================
     if(message.toLowerCase().includes("who is")){
-
       const name = message.split("who is")[1].trim();
 
       const person = await Memory.findOne({
@@ -181,27 +183,17 @@ app.post("/chat", async (req,res)=>{
     }
 
     // =========================
-    // 🧠 SHOW MEMORY
+    // 🧠 MEMORY CONTEXT (NEW 🔥)
     // =========================
-    if(/show|tell/i.test(message)){
-      const data = await Memory.find().limit(10);
+    const memoryData = await Memory.find().limit(20);
 
-      return res.json({
-        reply:{
-          title:"🧠 Memory",
-          sections:data.map(d=>{
-            const det = d.details || {};
-            return {
-              heading:d.title,
-              points:Object.values(det).filter(Boolean)
-            };
-          })
-        }
-      });
-    }
+    const memoryContext = memoryData.map(m=>{
+      const d = m.details || {};
+      return `${m.title}: ${Object.values(d).join(", ")}`;
+    }).join("\n");
 
     // =========================
-    // 🧠 NORMAL CHAT
+    // 🧠 NORMAL AI CHAT (MEMORY AWARE)
     // =========================
     const ai = await openai.chat.completions.create({
       model:"gpt-4o-mini",
@@ -211,8 +203,15 @@ app.post("/chat", async (req,res)=>{
           content:`
 You are Wang AI.
 
-Talk like ChatGPT.
-Be natural, smart, helpful.
+You HAVE memory of the user.
+
+Memory:
+${memoryContext}
+
+Rules:
+- Use memory to answer
+- Never say "I don’t remember"
+- Be natural and helpful
 
 Return JSON:
 {
@@ -248,6 +247,8 @@ Return JSON:
     res.json({ reply });
 
   }catch(err){
+    console.error(err);
+
     res.json({
       reply:{
         title:"Error",
@@ -264,8 +265,17 @@ Return JSON:
 // 📂 MEMORY API
 // ============================
 app.get("/memory", async (req,res)=>{
-  const data = await Memory.find().sort({createdAt:-1});
-  res.json(data);
+  try{
+    const data = await Memory.find().sort({createdAt:-1});
+    res.json(data);
+  }catch{
+    res.json([]);
+  }
 });
 
-app.listen(3000, ()=>console.log("🚀 Wang AI Final Running"));
+// ============================
+// 🚀 START
+// ============================
+app.listen(3000, ()=>{
+  console.log("🚀 Wang AI Next-Gen Running");
+});
