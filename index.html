@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Wang OS</title>
+<title>Wang AI</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
@@ -10,6 +10,8 @@ body {
   font-family:system-ui;
   background:#343541;
   color:white;
+  display:flex;
+  flex-direction:column;
   height:100vh;
 }
 
@@ -19,65 +21,58 @@ body {
   width:100%;
   height:100%;
   object-fit:cover;
-  filter: blur(8px) brightness(0.25) contrast(1.2);
+  filter: blur(8px) brightness(0.25);
   z-index:-2;
-}
-
-/* HUD LINES */
-body::after {
-  content:"";
-  position:fixed;
-  width:100%;
-  height:100%;
-  background: repeating-linear-gradient(
-    transparent,
-    transparent 2px,
-    rgba(0,255,255,0.03) 3px
-  );
 }
 
 /* HEADER */
 .header {
   display:flex;
   justify-content:space-between;
-  padding:12px;
+  align-items:center;
+  padding:12px 16px;
   background:rgba(32,33,35,0.9);
+  border-bottom:1px solid #444;
 }
 
-button {
+.dashboard-btn {
+  background:#444;
+  border:none;
+  padding:6px 12px;
+  border-radius:6px;
+  color:white;
   cursor:pointer;
 }
 
 /* CHAT */
 .chat {
-  height:calc(100vh - 140px);
+  flex:1;
   overflow-y:auto;
   padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
 }
 
+/* MESSAGE */
 .msg {
   max-width:700px;
-  padding:12px;
+  padding:12px 16px;
   border-radius:8px;
-  margin:10px 0;
-  transition:0.2s;
-}
-
-.msg:hover {
-  box-shadow:0 0 15px rgba(56,189,248,0.6);
-  transform:scale(1.01);
+  line-height:1.5;
 }
 
 .user {
+  align-self:flex-end;
   background:#3b82f6;
-  margin-left:auto;
 }
 
 .ai {
+  align-self:flex-start;
   background:rgba(68,70,84,0.9);
 }
 
-/* IMAGES */
+/* IMAGE */
 .msg img {
   width:100%;
   border-radius:8px;
@@ -86,71 +81,91 @@ button {
 
 /* INPUT */
 .input-area {
-  display:flex;
-  padding:10px;
+  padding:15px;
   background:#202123;
 }
 
+.input-box {
+  display:flex;
+  align-items:center;
+  background:#40414f;
+  border-radius:12px;
+  padding:10px;
+}
+
+/* INPUT FIELD */
 input {
   flex:1;
-  padding:12px;
-  background:#40414f;
+  background:transparent;
   border:none;
   color:white;
+  outline:none;
+  font-size:15px;
+}
+
+/* BUTTONS */
+.icon-btn {
+  background:none;
+  border:none;
+  color:white;
+  font-size:18px;
+  margin:0 5px;
+  cursor:pointer;
 }
 
 .send-btn {
   background:#3b82f6;
   border:none;
-  padding:10px;
-  margin-left:5px;
+  padding:8px 12px;
+  border-radius:8px;
+  cursor:pointer;
 }
 
-/* HUD WIDGET */
-.widget {
-  position:fixed;
-  top:70px;
-  right:20px;
-  background:rgba(0,0,0,0.5);
-  padding:10px;
-  border:1px solid #38bdf8;
-  border-radius:10px;
-  font-size:12px;
+/* HOVER EFFECT */
+.msg:hover {
+  box-shadow:0 0 10px rgba(56,189,248,0.5);
 }
 </style>
 </head>
 
 <body>
 
+<!-- BACKGROUND -->
 <img src="assets/art123.png" class="bg">
 
+<!-- HEADER -->
 <div class="header">
-  <div>🧠 Wang OS</div>
-  <button onclick="openDashboard()">📂 Dashboard</button>
+  <div>🧠 Wang AI</div>
+  <button class="dashboard-btn" onclick="openDashboard()">📂 Dashboard</button>
 </div>
 
+<!-- CHAT -->
 <div id="chat" class="chat"></div>
 
-<div class="widget">
-  <div id="time"></div>
-  <div>AI: ONLINE</div>
-</div>
-
+<!-- INPUT -->
 <div class="input-area">
-  <input id="input" placeholder="Ask anything..." />
-  <button class="send-btn" onclick="send()">➤</button>
+  <div class="input-box">
+
+    <!-- 🎤 MIC -->
+    <button class="icon-btn" onclick="startVoice()">🎤</button>
+
+    <!-- TEXT -->
+    <input id="input" placeholder="Message Wang..." />
+
+    <!-- 📎 IMAGE -->
+    <input type="file" id="img" style="display:none">
+    <button class="icon-btn" onclick="document.getElementById('img').click()">📎</button>
+
+    <!-- SEND -->
+    <button class="send-btn" onclick="send()">➤</button>
+
+  </div>
 </div>
 
 <script>
 const chat = document.getElementById("chat");
 
-// TIME
-setInterval(()=>{
-  document.getElementById("time").innerText =
-    new Date().toLocaleTimeString();
-},1000);
-
-// ADD MSG
+// ADD MESSAGE
 function add(text, cls){
   chat.innerHTML += `<div class="msg ${cls}">${text}</div>`;
   chat.scrollTop = chat.scrollHeight;
@@ -162,6 +177,7 @@ function renderAI(data){
 
   data.sections.forEach(sec=>{
     html += `<b>${sec.heading}</b>`;
+
     html += `<img src="https://picsum.photos/seed/${encodeURIComponent(sec.image_query)}/600/300">`;
 
     sec.points.forEach(p=>{
@@ -178,6 +194,7 @@ function renderAI(data){
 async function send(){
   const input = document.getElementById("input");
   const msg = input.value.trim();
+
   if(!msg) return;
 
   add(msg,"user");
@@ -194,6 +211,7 @@ async function send(){
   const data = await res.json();
 
   chat.lastChild.remove();
+
   add(renderAI(data.reply),"ai");
 }
 
@@ -201,6 +219,15 @@ async function send(){
 input.addEventListener("keypress", e=>{
   if(e.key==="Enter") send();
 });
+
+// VOICE INPUT
+function startVoice(){
+  const rec = new webkitSpeechRecognition();
+  rec.onresult = e=>{
+    document.getElementById("input").value = e.results[0][0].transcript;
+  };
+  rec.start();
+}
 
 // DASHBOARD
 function openDashboard(){
