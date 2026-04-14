@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Anand's Brain 🧠</title>
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+    }
+
+    .container {
+      display: flex;
+      gap: 20px;
+    }
+
+    .box {
+      flex: 1;
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
+      height: 400px;
+      overflow-y: auto;
+    }
+
+    .item {
+      background: #334155;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 6px;
+    }
+
+    h2 {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<h1>🧠 Anand's Brain Dashboard</h1>
+
+<div class="container">
+
+  <!-- Wang Memory -->
+  <div class="box">
+    <h2>🤖 Wang Memory</h2>
+    <div id="wang"></div>
+  </div>
+
+  <!-- Structured Brain -->
+  <div class="box">
+    <h2>📂 Anand's Brain</h2>
+    <div id="brain"></div>
+  </div>
+
+</div>
+
+<script>
+async function loadData() {
+  const res = await fetch("https://brain-app-320i.onrender.com/memory");
+  const data = await res.json();
+
+  const wangDiv = document.getElementById("wang");
+  const brainDiv = document.getElementById("brain");
+
+  data.forEach(item => {
+
+    // Wang Memory (raw)
+    wangDiv.innerHTML += `
+      <div class="item">${item.rawText}</div>
+    `;
+
+    // Structured Brain
+    brainDiv.innerHTML += `
+      <div class="item">
+        <b>Category:</b> ${item.category} <br/>
+        <b>Data:</b> ${JSON.stringify(item.content)}
+      </div>
+    `;
+  });
+}
+
+loadData();
+</script>
+
+</body>
+</html>
