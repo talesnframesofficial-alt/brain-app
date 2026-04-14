@@ -25,7 +25,7 @@ const MemorySchema = new mongoose.Schema({
 
 const Memory = mongoose.model("Memory", MemorySchema);
 
-// ✅ OpenAI setup
+// ✅ OpenAI
 const openai = new OpenAI({ apiKey: OPENAI_KEY });
 
 // ✅ JSON extractor
@@ -40,26 +40,32 @@ function extractJSON(text) {
   }
 }
 
-// 🚀 MAIN API
+// 🚀 MAIN ROUTE
 app.post("/chat", async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // 🧠 STEP 1 — Decide
+    // 🧠 STEP 1 — INTENT DETECTION
     const decisionRes = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content: `
-You are a personal brain assistant.
+You are a smart personal AI brain.
 
-Classify input into:
+Decide intent:
+
+- store → if user gives personal info to remember
+- retrieve → if asking about stored info
+- answer → general question or suggestion
+
+Categories:
 people, finance, plans, medical, notes
 
 Return ONLY JSON:
 {
- "action": "store" or "retrieve",
+ "action": "store" or "retrieve" or "answer",
  "category": "",
  "data": {},
  "query": ""
@@ -110,6 +116,24 @@ Return ONLY JSON:
       });
     }
 
+    // 🤖 GENERAL ANSWER (THIS FIXES YOUR ISSUE)
+    if (decision.action === "answer") {
+      const answerRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "You are a helpful smart assistant. Answer clearly."
+          },
+          { role: "user", content: userMessage }
+        ]
+      });
+
+      return res.json({
+        reply: answerRes.choices[0].message.content
+      });
+    }
+
     res.json({ reply: "Not sure 🤷" });
 
   } catch (err) {
@@ -118,14 +142,15 @@ Return ONLY JSON:
   }
 });
 
-// ✅ Root
+// 📂 MEMORY ROUTE (for dashboard)
+app.get("/memory", async (req, res) => {
+  const data = await Memory.find().sort({ createdAt: -1 });
+  res.json(data);
+});
+
+// ✅ ROOT
 app.get("/", (req, res) => {
   res.send("AI Brain Running 🚀");
 });
 
 app.listen(3000, () => console.log("Server running"));
-
-app.get("/memory", async (req, res) => {
-  const data = await Memory.find().sort({ createdAt: -1 });
-  res.json(data);
-});
