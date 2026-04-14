@@ -1,227 +1,118 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Wang AI</title>
+<title>Wang OS</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-body {
+body{
   margin:0;
   font-family:system-ui;
-  background:#343541;
   color:white;
-  display:flex;
-  flex-direction:column;
-  height:100vh;
+  background:black;
+  overflow:hidden;
 }
 
-/* BACKGROUND */
-.bg {
+/* NEURAL CANVAS */
+#neural{
   position:fixed;
   width:100%;
   height:100%;
-  object-fit:cover;
-  filter: blur(8px) brightness(0.25);
   z-index:-2;
 }
 
-/* HEADER */
-.header {
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:12px 16px;
-  background:rgba(32,33,35,0.9);
-  border-bottom:1px solid #444;
-}
-
-.dashboard-btn {
-  background:#444;
-  border:none;
-  padding:6px 12px;
-  border-radius:6px;
-  color:white;
-  cursor:pointer;
-}
-
 /* CHAT */
-.chat {
-  flex:1;
+.chat{
+  position:absolute;
+  top:60px;
+  bottom:80px;
+  width:100%;
   overflow-y:auto;
   padding:20px;
-  display:flex;
-  flex-direction:column;
-  gap:12px;
 }
 
-/* MESSAGE */
-.msg {
+.msg{
   max-width:700px;
-  padding:12px 16px;
-  border-radius:8px;
-  line-height:1.5;
-}
-
-.user {
-  align-self:flex-end;
-  background:#3b82f6;
-}
-
-.ai {
-  align-self:flex-start;
-  background:rgba(68,70,84,0.9);
-}
-
-/* IMAGE */
-.msg img {
-  width:100%;
-  border-radius:8px;
+  padding:12px;
   margin:10px 0;
+  border-radius:8px;
 }
+
+.user{ background:#3b82f6; margin-left:auto;}
+.ai{ background:rgba(50,50,60,0.8); }
 
 /* INPUT */
-.input-area {
-  padding:15px;
-  background:#202123;
-}
-
-.input-box {
-  display:flex;
-  align-items:center;
-  background:#40414f;
-  border-radius:12px;
+.input-area{
+  position:absolute;
+  bottom:0;
+  width:100%;
   padding:10px;
+  background:#111;
 }
 
-/* INPUT FIELD */
-input {
+.input-box{
+  display:flex;
+  background:#222;
+  padding:10px;
+  border-radius:10px;
+}
+
+input{
   flex:1;
-  background:transparent;
-  border:none;
-  color:white;
-  outline:none;
-  font-size:15px;
-}
-
-/* BUTTONS */
-.icon-btn {
   background:none;
   border:none;
   color:white;
-  font-size:18px;
-  margin:0 5px;
-  cursor:pointer;
 }
 
-.send-btn {
-  background:#3b82f6;
-  border:none;
-  padding:8px 12px;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-/* HOVER EFFECT */
-.msg:hover {
-  box-shadow:0 0 10px rgba(56,189,248,0.5);
+button{
+  margin-left:5px;
 }
 </style>
 </head>
 
 <body>
 
-<!-- BACKGROUND -->
-<img src="assets/art123.png" class="bg">
+<canvas id="neural"></canvas>
 
-<!-- HEADER -->
-<div class="header">
-  <div>🧠 Wang AI</div>
-  <button class="dashboard-btn" onclick="openDashboard()">📂 Dashboard</button>
-</div>
-
-<!-- CHAT -->
 <div id="chat" class="chat"></div>
 
-<!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
-
-    <!-- 🎤 MIC -->
-    <button class="icon-btn" onclick="startVoice()">🎤</button>
-
-    <!-- TEXT -->
-    <input id="input" placeholder="Message Wang..." />
-
-    <!-- 📎 IMAGE -->
-    <input type="file" id="img" style="display:none">
-    <button class="icon-btn" onclick="document.getElementById('img').click()">📎</button>
-
-    <!-- SEND -->
-    <button class="send-btn" onclick="send()">➤</button>
-
+    <button onclick="voice()">🎤</button>
+    <input id="input" placeholder="Talk to Wang..." />
+    <button onclick="send()">➤</button>
   </div>
 </div>
 
 <script>
+// CHAT
 const chat = document.getElementById("chat");
 
-// ADD MESSAGE
-function add(text, cls){
+function add(text,cls){
   chat.innerHTML += `<div class="msg ${cls}">${text}</div>`;
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// RENDER AI
-function renderAI(data){
-  let html = `<b>${data.title}</b><br><br>`;
-
-  data.sections.forEach(sec=>{
-    html += `<b>${sec.heading}</b>`;
-
-    html += `<img src="https://picsum.photos/seed/${encodeURIComponent(sec.image_query)}/600/300">`;
-
-    sec.points.forEach(p=>{
-      html += `<div>• ${p}</div>`;
-    });
-
-    html += "<br>";
-  });
-
-  return html;
 }
 
 // SEND
 async function send(){
   const input = document.getElementById("input");
-  const msg = input.value.trim();
-
+  const msg = input.value;
   if(!msg) return;
 
   add(msg,"user");
   input.value="";
 
-  add("Thinking...","ai");
-
-  const res = await fetch("https://brain-app-320i.onrender.com/chat",{
+  const res = await fetch("/chat",{
     method:"POST",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({message:msg})
   });
 
   const data = await res.json();
-
-  chat.lastChild.remove();
-
-  add(renderAI(data.reply),"ai");
+  add(JSON.stringify(data.reply),"ai");
 }
 
-// ENTER KEY
-input.addEventListener("keypress", e=>{
-  if(e.key==="Enter") send();
-});
-
-// VOICE INPUT
-function startVoice(){
+// VOICE
+function voice(){
   const rec = new webkitSpeechRecognition();
   rec.onresult = e=>{
     document.getElementById("input").value = e.results[0][0].transcript;
@@ -229,10 +120,52 @@ function startVoice(){
   rec.start();
 }
 
-// DASHBOARD
-function openDashboard(){
-  window.open("dashboard.html","_blank");
+// 🧠 NEURAL ANIMATION
+const canvas = document.getElementById("neural");
+const ctx = canvas.getContext("2d");
+
+canvas.width = innerWidth;
+canvas.height = innerHeight;
+
+let nodes=[];
+for(let i=0;i<70;i++){
+  nodes.push({
+    x:Math.random()*canvas.width,
+    y:Math.random()*canvas.height,
+    vx:(Math.random()-0.5),
+    vy:(Math.random()-0.5)
+  });
 }
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  nodes.forEach(n=>{
+    n.x+=n.vx;
+    n.y+=n.vy;
+
+    ctx.beginPath();
+    ctx.arc(n.x,n.y,2,0,Math.PI*2);
+    ctx.fillStyle="#38bdf8";
+    ctx.fill();
+
+    nodes.forEach(m=>{
+      let dx=n.x-m.x;
+      let dy=n.y-m.y;
+      let dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist<120){
+        ctx.beginPath();
+        ctx.moveTo(n.x,n.y);
+        ctx.lineTo(m.x,m.y);
+        ctx.strokeStyle="rgba(56,189,248,0.2)";
+        ctx.stroke();
+      }
+    });
+  });
+
+  requestAnimationFrame(draw);
+}
+draw();
 </script>
 
 </body>
