@@ -11,56 +11,60 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_KEY
 });
 
+// DB
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB connected ✅"));
+  .then(()=>console.log("MongoDB connected ✅"));
 
-// 🧠 ADVANCED MEMORY STRUCTURE
+// 🧠 MEMORY MODEL (ADVANCED)
 const Memory = mongoose.model("Memory", new mongoose.Schema({
-  type: String,       // people, finance, plans
-  title: String,      // name or topic
-  details: Object,    // structured data
+  type: String,
+  title: String,
+  details: Object,
   rawText: String,
   createdAt: { type: Date, default: Date.now }
-}, { strict: false }));
+}, { strict:false }));
 
 let chatHistory = [];
 
-// 🧠 INTENT DETECTION (IMPORTANT)
+// 🧠 INTENT DETECTION
 function detectIntent(text){
-  if(/remember|save|store|make note/i.test(text)) return "save";
-  if(/who|what|show|tell/i.test(text)) return "retrieve";
+  if(/remember|save|store|note/i.test(text)) return "save";
+  if(/who|what|show|tell|find/i.test(text)) return "retrieve";
   return "chat";
 }
 
-// 🧠 CATEGORY DETECTION
+// 🧠 CATEGORY
 function detectType(text){
-  if(/friend|father|mother|contact|name/i.test(text)) return "people";
-  if(/money|salary|owe|debt/i.test(text)) return "finance";
+  if(/friend|father|mother|person|name/i.test(text)) return "people";
+  if(/money|salary|debt|income/i.test(text)) return "finance";
   if(/plan|trip|travel/i.test(text)) return "plans";
   return "notes";
 }
 
-app.post("/chat", async (req, res) => {
+app.post("/chat", async (req,res)=>{
   const { message } = req.body;
 
-  try {
+  try{
     const intent = detectIntent(message);
     const type = detectType(message);
 
-    // 🧠 SAVE LOGIC (SMART)
+    // 🧠 SAVE (SMART STRUCTURE)
     if(intent === "save"){
-
-      const aiExtract = await openai.chat.completions.create({
+      const extract = await openai.chat.completions.create({
         model:"gpt-4o-mini",
         messages:[{
           role:"system",
           content:`
-Extract structured info.
+Extract structured data.
 
 Return JSON:
 {
  "title":"",
- "details":{}
+ "details":{
+   "name":"",
+   "relation":"",
+   "notes":""
+ }
 }
 `
         },
@@ -68,10 +72,10 @@ Return JSON:
       });
 
       let parsed;
-      try {
-        parsed = JSON.parse(aiExtract.choices[0].message.content);
-      } catch {
-        parsed = { title:"Note", details:{ text: message } };
+      try{
+        parsed = JSON.parse(extract.choices[0].message.content);
+      }catch{
+        parsed = { title:"Note", details:{ text:message }};
       }
 
       await Memory.create({
@@ -83,9 +87,9 @@ Return JSON:
 
       return res.json({
         reply:{
-          title:"🧠 Saved Successfully",
+          title:"🧠 Memory Saved",
           sections:[{
-            heading:"Stored in memory",
+            heading:"Stored Successfully",
             points:[`Saved under ${type}`],
             image_query:"database"
           }]
@@ -93,26 +97,13 @@ Return JSON:
       });
     }
 
-    // 🧠 RETRIEVE LOGIC
+    // 🧠 RETRIEVE (SMART)
     if(intent === "retrieve"){
       const data = await Memory.find().sort({createdAt:-1}).limit(10);
 
-      if(data.length === 0){
-        return res.json({
-          reply:{
-            title:"No Data Found",
-            sections:[{
-              heading:"Nothing stored yet",
-              points:["Try saving something first"],
-              image_query:"empty"
-            }]
-          }
-        });
-      }
-
       return res.json({
         reply:{
-          title:"🧠 Your Stored Data",
+          title:"🧠 Memory Results",
           sections:data.map(d=>({
             heading:d.title || d.type,
             points:[d.rawText],
@@ -122,7 +113,7 @@ Return JSON:
       });
     }
 
-    // 🧠 NORMAL CHAT (LIKE ME)
+    // 🧠 CHAT (LIKE ME)
     const response = await openai.chat.completions.create({
       model:"gpt-4o-mini",
       messages:[
@@ -132,12 +123,13 @@ Return JSON:
 You are Wang AI.
 
 Behave like ChatGPT:
-- Understand intent
+- Understand deeply
 - Ask questions if unclear
 - Give suggestions
-- Be natural
+- Be natural, not robotic
+- Keep answers structured
 
-Return JSON format only.
+Return JSON only.
 `
         },
         ...chatHistory.slice(-6),
@@ -148,9 +140,9 @@ Return JSON format only.
     let raw = response.choices[0].message.content;
 
     let reply;
-    try {
+    try{
       reply = JSON.parse(raw);
-    } catch {
+    }catch{
       reply = {
         title:"Response",
         sections:[{
@@ -161,16 +153,16 @@ Return JSON format only.
       };
     }
 
-    chatHistory.push({ role:"user", content:message });
+    chatHistory.push({role:"user", content:message});
 
     res.json({ reply });
 
-  } catch(err){
+  }catch(err){
     res.json({
       reply:{
         title:"Error",
         sections:[{
-          heading:"Something went wrong",
+          heading:"Issue",
           points:[err.message],
           image_query:"error"
         }]
@@ -184,4 +176,4 @@ app.get("/memory", async (req,res)=>{
   res.json(data);
 });
 
-app.listen(3000, ()=>console.log("🚀 Wang Level 2 Running"));
+app.listen(3000, ()=>console.log("🚀 Level 3 AI Running"));
