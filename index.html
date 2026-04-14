@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
+*{box-sizing:border-box;}
 body{
   margin:0;
   font-family:system-ui;
-  background:#343541;
+  background:black;
   color:white;
-  height:100vh;
   overflow:hidden;
 }
 
@@ -20,96 +20,22 @@ body{
   width:100%;
   height:100%;
   z-index:-2;
-  background:black;
 }
 
-/* HEADER */
-.header{
-  display:flex;
-  justify-content:space-between;
-  padding:12px 16px;
-  background:#202123;
-}
-
-.header button{
-  background:#444;
-  border:none;
-  padding:6px 12px;
-  border-radius:6px;
-  color:white;
-  cursor:pointer;
-}
-
-/* CHAT */
-.chat{
-  position:absolute;
-  top:60px;
-  bottom:90px;
-  width:100%;
-  overflow-y:auto;
-  padding:20px;
-}
-
-.msg{
-  max-width:700px;
-  padding:12px 16px;
-  margin:10px 0;
-  border-radius:8px;
-}
-
-.user{
-  background:#3b82f6;
-  margin-left:auto;
-}
-
-.ai{
-  background:rgba(68,70,84,0.9);
-}
-
-/* INPUT */
-.input-area{
-  position:absolute;
-  bottom:0;
-  width:100%;
-  padding:15px;
-  background:#343541;
-}
-
-.input-box{
-  display:flex;
-  align-items:center;
-  background:#40414f;
-  border-radius:12px;
+/* 📊 GRAPH PANEL */
+.graph-box{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  width:250px;
+  height:150px;
+  background:rgba(0,0,0,0.6);
+  border:1px solid #38bdf8;
+  border-radius:10px;
   padding:10px;
 }
 
-input{
-  flex:1;
-  background:transparent;
-  border:none;
-  color:white;
-  outline:none;
-}
-
-/* BUTTONS */
-.icon-btn{
-  background:none;
-  border:none;
-  color:white;
-  font-size:18px;
-  margin:0 6px;
-  cursor:pointer;
-}
-
-.send-btn{
-  background:#3b82f6;
-  border:none;
-  padding:8px 12px;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-/* HUD */
+/* ⚡ HUD PANEL */
 .hud{
   position:fixed;
   top:70px;
@@ -120,18 +46,100 @@ input{
   border-radius:10px;
   font-size:12px;
 }
+
+/* HEADER */
+.header{
+  position:absolute;
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  padding:10px;
+  background:rgba(0,0,0,0.5);
+  backdrop-filter:blur(10px);
+}
+
+/* CHAT */
+.chat{
+  position:absolute;
+  top:60px;
+  bottom:90px;
+  width:100%;
+  overflow-y:auto;
+  padding:15px;
+}
+
+/* MESSAGE */
+.msg{
+  max-width:90%;
+  padding:10px;
+  margin:8px 0;
+  border-radius:8px;
+  word-wrap:break-word;
+}
+
+.user{
+  background:#3b82f6;
+  margin-left:auto;
+}
+
+.ai{
+  background:rgba(50,50,60,0.8);
+}
+
+/* INPUT */
+.input-area{
+  position:absolute;
+  bottom:0;
+  width:100%;
+  padding:10px;
+  background:rgba(0,0,0,0.7);
+}
+
+.input-box{
+  display:flex;
+  background:#222;
+  border-radius:10px;
+  padding:8px;
+}
+
+input{
+  flex:1;
+  background:none;
+  border:none;
+  color:white;
+  font-size:16px;
+}
+
+button{
+  background:none;
+  border:none;
+  color:white;
+  font-size:18px;
+  margin:0 5px;
+}
+
+/* 📱 MOBILE FIX */
+@media(max-width:600px){
+  .graph-box{
+    width:160px;
+    height:100px;
+  }
+  .hud{
+    font-size:10px;
+  }
+}
 </style>
 </head>
 
 <body>
 
-<!-- 🧠 NEURAL -->
+<!-- 🧠 BACKGROUND -->
 <canvas id="neural"></canvas>
 
 <!-- HEADER -->
 <div class="header">
   <div>🧠 Wang OS</div>
-  <button onclick="openDashboard()">📂 Dashboard</button>
+  <button onclick="openDashboard()">📂</button>
 </div>
 
 <!-- CHAT -->
@@ -143,125 +151,111 @@ input{
   <div>AI: ONLINE</div>
 </div>
 
+<!-- GRAPH -->
+<div class="graph-box">
+  <canvas id="chart"></canvas>
+</div>
+
 <!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
-
-    <button class="icon-btn" onclick="startVoice()">🎤</button>
-
+    <button onclick="voice()">🎤</button>
     <input id="input" placeholder="Message Wang..." />
-
-    <input type="file" id="img" style="display:none">
-    <button class="icon-btn" onclick="document.getElementById('img').click()">📎</button>
-
-    <button class="send-btn" onclick="send()">➤</button>
-
+    <button onclick="send()">➤</button>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
-const chat = document.getElementById("chat");
+const chat=document.getElementById("chat");
 
-// ⏱️ TIME
-setInterval(()=>{
-  document.getElementById("time").innerText =
-    new Date().toLocaleTimeString();
-},1000);
-
-// ADD MESSAGE
+/* 🧠 ADD MESSAGE */
 function add(text,cls){
-  chat.innerHTML += `<div class="msg ${cls}">${text}</div>`;
-  chat.scrollTop = chat.scrollHeight;
+  chat.innerHTML+=`<div class="msg ${cls}">${text}</div>`;
+  chat.scrollTop=chat.scrollHeight;
 }
 
-// ✅ SEND (FIXED BACKEND URL)
+/* 🚀 SEND */
 async function send(){
-  const input = document.getElementById("input");
-  const msg = input.value.trim();
+  const input=document.getElementById("input");
+  const msg=input.value.trim();
   if(!msg) return;
 
   add(msg,"user");
   input.value="";
 
-  add("Thinking...","ai");
-
-  try{
-    const res = await fetch("https://brain-app-320i.onrender.com/chat",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message:msg})
-    });
-
-    const data = await res.json();
-
-    chat.lastChild.remove();
-
-    add(formatReply(data.reply),"ai");
-
-  }catch(err){
-    chat.lastChild.remove();
-    add("❌ Server not responding","ai");
-  }
-}
-
-// FORMAT AI RESPONSE
-function formatReply(data){
-  let html = `<b>${data.title}</b><br><br>`;
-
-  data.sections.forEach(sec=>{
-    html += `<b>${sec.heading}</b>`;
-
-    html += `<img src="https://picsum.photos/seed/${encodeURIComponent(sec.image_query)}/600/300">`;
-
-    sec.points.forEach(p=>{
-      html += `<div>• ${p}</div>`;
-    });
-
-    html += "<br>";
+  const res=await fetch("https://brain-app-320i.onrender.com/chat",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({message:msg})
   });
 
+  const data=await res.json();
+
+  add(format(data.reply),"ai");
+}
+
+/* FORMAT */
+function format(data){
+  let html=`<b>${data.title}</b>`;
+  data.sections.forEach(s=>{
+    html+=`<br><b>${s.heading}</b>`;
+    s.points.forEach(p=>html+=`<div>• ${p}</div>`);
+  });
   return html;
 }
 
-// ENTER KEY
-document.getElementById("input").addEventListener("keypress", e=>{
-  if(e.key==="Enter") send();
-});
-
-// 🎤 VOICE
-function startVoice(){
-  const rec = new webkitSpeechRecognition();
-  rec.onresult = e=>{
-    document.getElementById("input").value =
-      e.results[0][0].transcript;
+/* 🎤 VOICE */
+function voice(){
+  const rec=new webkitSpeechRecognition();
+  rec.onresult=e=>{
+    document.getElementById("input").value=e.results[0][0].transcript;
   };
   rec.start();
 }
 
-// 📂 DASHBOARD
+/* ⏱️ TIME */
+setInterval(()=>{
+  document.getElementById("time").innerText=
+    new Date().toLocaleTimeString();
+},1000);
+
+/* 📊 GRAPH */
+new Chart(document.getElementById("chart"),{
+  type:"line",
+  data:{
+    labels:["Mon","Tue","Wed","Thu","Fri"],
+    datasets:[{
+      data:[10,20,15,30,25],
+      borderColor:"#38bdf8"
+    }]
+  }
+});
+
+/* 📂 DASHBOARD */
 function openDashboard(){
-  window.open("dashboard.html","_blank");
+  window.open("dashboard.html");
 }
 
-// 🧠 NEURAL ANIMATION
-const canvas = document.getElementById("neural");
-const ctx = canvas.getContext("2d");
-
-canvas.width = innerWidth;
-canvas.height = innerHeight;
+/* 🧠 NEURAL */
+const c=document.getElementById("neural");
+const ctx=c.getContext("2d");
+c.width=innerWidth;
+c.height=innerHeight;
 
 let nodes=[];
 for(let i=0;i<80;i++){
   nodes.push({
-    x:Math.random()*canvas.width,
-    y:Math.random()*canvas.height,
+    x:Math.random()*c.width,
+    y:Math.random()*c.height,
     vx:(Math.random()-0.5),
     vy:(Math.random()-0.5)
   });
 }
 
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,c.width,c.height);
 
   nodes.forEach(n=>{
     n.x+=n.vx;
@@ -273,10 +267,8 @@ function draw(){
     ctx.fill();
 
     nodes.forEach(m=>{
-      let dx=n.x-m.x;
-      let dy=n.y-m.y;
-      let dist=Math.sqrt(dx*dx+dy*dy);
-      if(dist<120){
+      let d=Math.hypot(n.x-m.x,n.y-m.y);
+      if(d<120){
         ctx.beginPath();
         ctx.moveTo(n.x,n.y);
         ctx.lineTo(m.x,m.y);
