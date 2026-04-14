@@ -13,12 +13,22 @@ body{
   overflow:hidden;
 }
 
-/* 🌐 NETWORK BACKGROUND */
+/* 🧠 BACKGROUND */
 #neural{
   position:fixed;
   width:100%;
   height:100%;
   z-index:-2;
+}
+
+/* HEADER */
+.header{
+  position:fixed;
+  width:100%;
+  display:flex;
+  justify-content:space-between;
+  padding:12px;
+  background:rgba(0,0,0,0.5);
 }
 
 /* 💬 CHAT CENTER */
@@ -40,6 +50,7 @@ body{
   border-radius:12px;
   width:fit-content;
   max-width:100%;
+  line-height:1.5;
 }
 
 .user{
@@ -77,6 +88,7 @@ input{
   border:none;
   color:white;
   font-size:16px;
+  outline:none;
 }
 
 button{
@@ -85,16 +97,18 @@ button{
   color:white;
   font-size:18px;
   margin:0 6px;
+  cursor:pointer;
 }
 
-/* ⚡ LEFT CLOCK */
-.clock-box{
+/* ⏱️ CLOCK LEFT */
+.clock{
   position:fixed;
   top:20px;
   left:20px;
+  font-size:13px;
 }
 
-/* ⚡ RIGHT HUD */
+/* ⚡ HUD RIGHT */
 .hud{
   position:fixed;
   top:20px;
@@ -114,13 +128,9 @@ button{
   border:1px solid cyan;
 }
 
-/* HEADER */
-.header{
-  position:fixed;
-  width:100%;
-  display:flex;
-  justify-content:space-between;
-  padding:10px;
+/* MOBILE */
+@media(max-width:600px){
+  .msg{max-width:90%;}
 }
 </style>
 </head>
@@ -136,14 +146,12 @@ button{
 
 <div id="chat" class="chat"></div>
 
-<!-- CLOCK LEFT -->
-<div class="clock-box">
-  <!-- already inserted widget above -->
-</div>
+<!-- CLOCK -->
+<div class="clock" id="clock"></div>
 
-<!-- HUD RIGHT -->
+<!-- HUD -->
 <div class="hud">
-  <div id="weather"></div>
+  <div id="weather">Loading...</div>
   <div>AI: ONLINE</div>
 </div>
 
@@ -155,6 +163,7 @@ button{
 <!-- INPUT -->
 <div class="input-area">
   <div class="input-box">
+
     <button onclick="voice()">🎤</button>
 
     <input id="input" placeholder="Message Wang..." />
@@ -163,6 +172,7 @@ button{
     <button onclick="document.getElementById('img').click()">📎</button>
 
     <button onclick="send()">➤</button>
+
   </div>
 </div>
 
@@ -180,12 +190,15 @@ function add(text,cls){
   chat.scrollTop=chat.scrollHeight;
 }
 
-// FORMAT
+// FORMAT RESPONSE
 function format(data){
+  if(!data || !data.sections) return "⚠️ Error";
+
   let html=`<b>${data.title}</b><br><br>`;
   data.sections.forEach(s=>{
-    html+=`<b>${s.heading}</b>`;
-    s.points.forEach(p=>html+=`<div>• ${p}</div>`);
+    if(s.heading) html+=`<b>${s.heading}</b>`;
+    (s.points||[]).forEach(p=>html+=`<div>• ${p}</div>`);
+    html+="<br>";
   });
   return html;
 }
@@ -199,15 +212,25 @@ async function send(){
   add(msg,"user");
   input.value="";
 
-  const res=await fetch("https://brain-app-320i.onrender.com/chat",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({message:msg})
-  });
+  try{
+    const res=await fetch("https://brain-app-320i.onrender.com/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:msg})
+    });
 
-  const data=await res.json();
-  add(format(data.reply),"ai");
+    const data=await res.json();
+    add(format(data.reply),"ai");
+
+  }catch{
+    add("❌ Server error","ai");
+  }
 }
+
+// ENTER
+document.getElementById("input").addEventListener("keypress",e=>{
+  if(e.key==="Enter") send();
+});
 
 // VOICE
 function voice(){
@@ -217,6 +240,12 @@ function voice(){
   };
   rec.start();
 }
+
+// CLOCK
+setInterval(()=>{
+  document.getElementById("clock").innerText=
+    new Date().toLocaleString();
+},1000);
 
 // WEATHER
 fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&current_weather=true")
@@ -230,38 +259,59 @@ fetch("https://api.open-meteo.com/v1/forecast?latitude=8.52&longitude=76.93&curr
 new Chart(document.getElementById("chart"),{
   type:"line",
   data:{
-    labels:["Mon","Tue","Wed","Thu"],
-    datasets:[{data:[10,20,15,25],borderColor:"cyan"}]
+    labels:["Mon","Tue","Wed","Thu","Fri"],
+    datasets:[{
+      data:[10,20,15,30,25],
+      borderColor:"cyan"
+    }]
   }
 });
 
-// 🧠 INDIA-MAP STYLE FLOW
+// 🧠 GOLD + BLUE NEURAL
 const c=document.getElementById("neural");
 const ctx=c.getContext("2d");
-c.width=innerWidth;c.height=innerHeight;
+c.width=innerWidth;
+c.height=innerHeight;
 
-let lines=[];
-for(let i=0;i<60;i++){
-  lines.push({
+let nodes=[];
+for(let i=0;i<90;i++){
+  nodes.push({
     x:Math.random()*c.width,
     y:Math.random()*c.height,
-    vx:Math.random()*2
+    vx:(Math.random()-0.5)*0.7,
+    vy:(Math.random()-0.5)*0.7
   });
 }
 
 function draw(){
-  ctx.fillStyle="rgba(0,0,0,0.2)";
+  ctx.fillStyle="rgba(0,0,0,0.25)";
   ctx.fillRect(0,0,c.width,c.height);
 
-  lines.forEach(l=>{
-    ctx.beginPath();
-    ctx.moveTo(l.x,l.y);
-    ctx.lineTo(l.x+l.vx*10,l.y);
-    ctx.strokeStyle="rgba(0,255,255,0.5)";
-    ctx.stroke();
+  nodes.forEach(n=>{
+    n.x+=n.vx;
+    n.y+=n.vy;
 
-    l.x+=l.vx;
-    if(l.x>c.width) l.x=0;
+    // GOLD NODE
+    ctx.beginPath();
+    ctx.arc(n.x,n.y,2,0,Math.PI*2);
+    ctx.fillStyle="#FFD700";
+    ctx.fill();
+
+    nodes.forEach(m=>{
+      let d=Math.hypot(n.x-m.x,n.y-m.y);
+
+      if(d<130){
+        ctx.beginPath();
+        ctx.moveTo(n.x,n.y);
+        ctx.lineTo(m.x,m.y);
+
+        ctx.strokeStyle = d<60
+          ? "rgba(255,215,0,0.4)"   // gold
+          : "rgba(0,200,255,0.25)"; // blue
+
+        ctx.stroke();
+      }
+    });
   });
 
   requestAnimationFrame(draw);
