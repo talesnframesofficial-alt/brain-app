@@ -7,7 +7,7 @@
 <style>
 body{
   margin:0;
-  font-family: system-ui, -apple-system;
+  font-family:system-ui;
   background:#343541;
   color:white;
   height:100vh;
@@ -27,10 +27,8 @@ body{
 .header{
   display:flex;
   justify-content:space-between;
-  align-items:center;
   padding:12px 16px;
-  background:rgba(32,33,35,0.9);
-  border-bottom:1px solid #444;
+  background:#202123;
 }
 
 .header button{
@@ -52,7 +50,6 @@ body{
   padding:20px;
 }
 
-/* MESSAGE */
 .msg{
   max-width:700px;
   padding:12px 16px;
@@ -69,7 +66,7 @@ body{
   background:rgba(68,70,84,0.9);
 }
 
-/* 💬 CHATGPT INPUT */
+/* INPUT */
 .input-area{
   position:absolute;
   bottom:0;
@@ -86,16 +83,15 @@ body{
   padding:10px;
 }
 
-.input-box input{
+input{
   flex:1;
   background:transparent;
   border:none;
   color:white;
   outline:none;
-  font-size:15px;
 }
 
-/* ICON BUTTONS */
+/* BUTTONS */
 .icon-btn{
   background:none;
   border:none;
@@ -105,7 +101,6 @@ body{
   cursor:pointer;
 }
 
-/* SEND BUTTON */
 .send-btn{
   background:#3b82f6;
   border:none;
@@ -114,7 +109,7 @@ body{
   cursor:pointer;
 }
 
-/* ⚡ HUD GADGET */
+/* HUD */
 .hud{
   position:fixed;
   top:70px;
@@ -142,7 +137,7 @@ body{
 <!-- CHAT -->
 <div id="chat" class="chat"></div>
 
-<!-- ⚡ HUD GADGET -->
+<!-- HUD -->
 <div class="hud">
   <div id="time"></div>
   <div>AI: ONLINE</div>
@@ -152,17 +147,13 @@ body{
 <div class="input-area">
   <div class="input-box">
 
-    <!-- 🎤 MIC -->
     <button class="icon-btn" onclick="startVoice()">🎤</button>
 
-    <!-- TEXT -->
     <input id="input" placeholder="Message Wang..." />
 
-    <!-- 📎 IMAGE -->
     <input type="file" id="img" style="display:none">
     <button class="icon-btn" onclick="document.getElementById('img').click()">📎</button>
 
-    <!-- SEND -->
     <button class="send-btn" onclick="send()">➤</button>
 
   </div>
@@ -183,7 +174,7 @@ function add(text,cls){
   chat.scrollTop = chat.scrollHeight;
 }
 
-// SEND
+// ✅ SEND (FIXED BACKEND URL)
 async function send(){
   const input = document.getElementById("input");
   const msg = input.value.trim();
@@ -194,20 +185,46 @@ async function send(){
 
   add("Thinking...","ai");
 
-  const res = await fetch("/chat",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({message:msg})
+  try{
+    const res = await fetch("https://brain-app-320i.onrender.com/chat",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:msg})
+    });
+
+    const data = await res.json();
+
+    chat.lastChild.remove();
+
+    add(formatReply(data.reply),"ai");
+
+  }catch(err){
+    chat.lastChild.remove();
+    add("❌ Server not responding","ai");
+  }
+}
+
+// FORMAT AI RESPONSE
+function formatReply(data){
+  let html = `<b>${data.title}</b><br><br>`;
+
+  data.sections.forEach(sec=>{
+    html += `<b>${sec.heading}</b>`;
+
+    html += `<img src="https://picsum.photos/seed/${encodeURIComponent(sec.image_query)}/600/300">`;
+
+    sec.points.forEach(p=>{
+      html += `<div>• ${p}</div>`;
+    });
+
+    html += "<br>";
   });
 
-  const data = await res.json();
-
-  chat.lastChild.remove();
-  add(JSON.stringify(data.reply),"ai");
+  return html;
 }
 
 // ENTER KEY
-input.addEventListener("keypress", e=>{
+document.getElementById("input").addEventListener("keypress", e=>{
   if(e.key==="Enter") send();
 });
 
