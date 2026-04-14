@@ -14,100 +14,95 @@ const openai = new OpenAI({
 mongoose.connect(process.env.MONGO_URI)
   .then(()=>console.log("MongoDB connected ✅"));
 
-// 🧠 MODEL
+// 🧠 MEMORY MODEL
 const Memory = mongoose.model("Memory", new mongoose.Schema({
-  type:String,
+  type:String, // people, contacts, projects, notes
   title:String,
   details:Object,
   rawText:String,
   createdAt:{ type:Date, default:Date.now }
 },{ strict:false }));
 
-// 🧠 SAVE DETECTOR
-function isSave(text){
-  return /is my|he is|she is|remember|add/i.test(text);
+// ============================
+// 🧠 AUTO MEMORY ENGINE
+// ============================
+async function autoMemory(message){
+
+  const extract = await openai.chat.completions.create({
+    model:"gpt-4o-mini",
+    messages:[
+      {
+        role:"system",
+        content:`
+Analyze message and extract structured memory.
+
+Return JSON:
+
+{
+ "type":"people | contact | project | note | none",
+ "title":"",
+ "details":{
+   "name":"",
+   "relation":"",
+   "phone":"",
+   "location":"",
+   "job":"",
+   "project":"",
+   "notes":""
+ }
 }
 
+If nothing important → type = "none"
+`
+      },
+      { role:"user", content:message }
+    ]
+  });
+
+  let parsed;
+  try{
+    parsed = JSON.parse(extract.choices[0].message.content);
+  }catch{
+    return null;
+  }
+
+  if(parsed.type === "none") return null;
+
+  // 🔄 FIND EXISTING
+  let existing = await Memory.findOne({
+    title:{ $regex: parsed.title, $options:"i" }
+  });
+
+  if(existing){
+    existing.details = {
+      ...(existing.details || {}),
+      ...(parsed.details || {})
+    };
+    existing.rawText += " | " + message;
+    await existing.save();
+  }else{
+    await Memory.create({
+      type:parsed.type,
+      title:parsed.title,
+      details:parsed.details,
+      rawText:message
+    });
+  }
+}
+
+// ============================
+// 💬 CHAT ROUTE
+// ============================
 app.post("/chat", async (req,res)=>{
   const { message } = req.body;
 
   try{
 
-    // =========================
-    // 🧠 SAVE (REWRITABLE)
-    // =========================
-    if(isSave(message)){
-
-      const extract = await openai.chat.completions.create({
-        model:"gpt-4o-mini",
-        messages:[
-          {
-            role:"system",
-            content:`
-Extract person info.
-
-Return JSON:
-{
- "name":"",
- "relation":"",
- "location":"",
- "job":"",
- "notes":""
-}
-`
-          },
-          { role:"user", content:message }
-        ]
-      });
-
-      let parsed;
-      try{
-        parsed = JSON.parse(extract.choices[0].message.content);
-      }catch{
-        parsed = {
-          name: message.split(" ")[0],
-          notes: message
-        };
-      }
-
-      let existing = await Memory.findOne({
-        title:{ $regex: parsed.name, $options:"i" }
-      });
-
-      if(existing){
-        existing.details = {
-          ...(existing.details || {}),
-          ...parsed
-        };
-        existing.rawText += " | " + message;
-        await existing.save();
-      }else{
-        await Memory.create({
-          type:"people",
-          title: parsed.name,
-          details: parsed,
-          rawText: message
-        });
-      }
-
-      return res.json({
-        reply:{
-          title:`🧠 Updated: ${parsed.name}`,
-          sections:[{
-            heading:"Memory Saved",
-            points:[
-              parsed.relation,
-              parsed.location,
-              parsed.job
-            ].filter(Boolean),
-            image_query:"person profile"
-          }]
-        }
-      });
-    }
+    // 🧠 AUTO MEMORY (ALWAYS RUNS)
+    await autoMemory(message);
 
     // =========================
-    // 🧠 WHO IS (SMART SEARCH)
+    // 🧠 WHO IS
     // =========================
     if(message.toLowerCase().includes("who is")){
       const name = message.split("who is")[1].trim();
@@ -122,8 +117,7 @@ Return JSON:
             title:"Not Found",
             sections:[{
               heading:name,
-              points:["No data available"],
-              image_query:"search"
+              points:["No data available"]
             }]
           }
         });
@@ -136,20 +130,14 @@ Return JSON:
           title:`👤 ${person.title}`,
           sections:[{
             heading:"Details",
-            points:[
-              d.relation,
-              d.location,
-              d.job,
-              d.notes
-            ].filter(Boolean),
-            image_query:"person"
+            points:Object.values(d).filter(Boolean)
           }]
         }
       });
     }
 
     // =========================
-    // 🧠 GENERAL RETRIEVE
+    // 🧠 SHOW MEMORY
     // =========================
     if(/show|tell/i.test(message)){
       const data = await Memory.find().limit(10);
@@ -157,26 +145,16 @@ Return JSON:
       return res.json({
         reply:{
           title:"🧠 Memory",
-          sections:data.map(d=>{
-            const det = d.details || {};
-            return {
-              heading:d.title,
-              points:[
-                det.relation,
-                det.location,
-                det.job,
-                det.notes,
-                d.rawText
-              ].filter(Boolean),
-              image_query:"person"
-            };
-          })
+          sections:data.map(d=>({
+            heading:d.title,
+            points:Object.values(d.details || {}).filter(Boolean)
+          }))
         }
       });
     }
 
     // =========================
-    // 🧠 NORMAL CHAT
+    // 🧠 NORMAL AI CHAT
     // =========================
     const ai = await openai.chat.completions.create({
       model:"gpt-4o-mini",
@@ -186,8 +164,8 @@ Return JSON:
           content:`
 You are Wang AI.
 
-Talk naturally like ChatGPT.
-Be smart and helpful.
+Talk like a human assistant.
+Be smart, natural, and helpful.
 
 Return JSON:
 {
@@ -195,8 +173,7 @@ Return JSON:
  "sections":[
   {
    "heading":"",
-   "points":[""],
-   "image_query":""
+   "points":[""]
   }
  ]
 }
@@ -216,8 +193,7 @@ Return JSON:
         title:"Wang AI",
         sections:[{
           heading:"Response",
-          points:[raw],
-          image_query:"ai"
+          points:[raw]
         }]
       };
     }
@@ -237,9 +213,12 @@ Return JSON:
   }
 });
 
+// ============================
+// 📂 MEMORY API
+// ============================
 app.get("/memory", async (req,res)=>{
   const data = await Memory.find().sort({createdAt:-1});
   res.json(data);
 });
 
-app.listen(3000, ()=>console.log("🚀 AI Running"));
+app.listen(3000, ()=>console.log("🚀 Next-Gen AI Running"));
